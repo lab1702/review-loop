@@ -2,7 +2,7 @@
 
 Loop review-fix-test until review comes clean or 10 reviews are done
 
-This is tested with Codex inside the ChatGPT Desktop app.
+This is tested with **Codex** inside the **ChatGPT Desktop** app.
 
 ## Installation
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Review Loop"
+  short_description: "Independent repository reviews with verified fixes"
+
+policy:
+  allow_implicit_invocation: false

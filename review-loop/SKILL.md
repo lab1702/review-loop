@@ -1,6 +1,7 @@
 ---
 name: review-loop
 description: Run repeated independent whole-repository reviews with verified fixes, required checks, and explicitly authorized commits to main and upstream pushes. Use only when explicitly invoked to run this review loop.
+disable-model-invocation: true
 ---
 
 # Review Loop
@@ -20,14 +21,14 @@ Do not force-push, rewrite history, bypass branch protection, change remotes, or
 ## First, check capabilities
 
 - Verify that you can launch a NEW reviewer subagent for each pass without inheriting the coordinator's conversation or any previous reviewer conversations.
-- Use an actual fresh-context mechanism supported and documented by the available tools. For example, use `collaboration.spawn_agent` with `fork_turns: "none"` only when the current tool documentation verifies that this omits surrounding conversation history. Do not assume default spawning provides isolation.
+- Use an actual fresh-context mechanism supported and documented by the available tools. For example, use `collaboration.spawn_agent` with `fork_turns: "none"` only when the current tool documentation verifies that this omits surrounding conversation history. In Claude Code, use the Agent tool with a non-fork subagent type (for example `general-purpose`), which starts with fresh context; never use the `fork` type. Do not assume default spawning provides isolation.
 - Telling an existing agent to "ignore previous context" does not count. A separate task or thread does not necessarily have cleared context.
 - If genuinely fresh reviewer context cannot be provided or verified, stop before editing and explain the limitation. Never substitute an unverified reviewer or claim independence without evidence.
-- Do not install or invoke a separate Codex CLI for this workflow.
+- Do not install or invoke a separate Codex or Claude Code CLI for this workflow.
 
 ## Preparation
 
-- Follow AGENTS.md and the repository's instructions.
+- Follow AGENTS.md, CLAUDE.md, and the repository's instructions.
 - Verify that the current branch is main, the working tree is clean, and main matches its configured GitHub upstream. Refresh the remote state using the existing configuration before comparing commits; do not rely on a stale remote-tracking reference. Stop on a mismatch or if the upstream cannot be verified. Do not switch branches, discard work, or change upstream configuration to make the preconditions pass.
 - Identify the required test, lint, type-check, and build commands from applicable project requirements.
 - Track the number of review passes, the consecutive clean-review count, and the commit reviewed in each pass. Start both counters at zero. Keep coordinator findings, fix explanations, and review logs out of reviewer prompts and out of the committed codebase.

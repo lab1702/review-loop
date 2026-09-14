@@ -2,7 +2,9 @@
 
 Loop review-fix-test until review comes clean or 10 reviews are done
 
-This is tested with **Codex** inside the **ChatGPT Desktop** app.
+This is tested with **Codex** inside the **ChatGPT Desktop** app, and also installs for **Claude Code**.
+
+The install scripts copy the skill to both `~/.agents/skills/` (Codex) and `~/.claude/skills/` (Claude Code).
 
 ## Installation
 
@@ -20,8 +22,14 @@ This is tested with **Codex** inside the **ChatGPT Desktop** app.
 
 ## Usage
 
-In the chat window:
+In the Codex chat window:
 
 ```
 $review-loop
+```
+
+In Claude Code:
+
+```
+/review-loop
 ```

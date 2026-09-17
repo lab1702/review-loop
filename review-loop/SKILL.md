@@ -9,7 +9,7 @@ Coordinate independent whole-repository reviews, validate findings, fix verified
 
 ## Launch requirements
 
-Require explicit authorization for ordinary commits, for example: "I authorize ordinary commits to the current branch." Invoking the skill alone is insufficient. If authorization is absent or ambiguous, request it and wait before starting. This covers all ordinary commits in the run without reconfirmation; required platform approvals still apply.
+Require explicit authorization for **ordinary commits**: new local commits on the starting branch, without amending or rewriting history. For example: "I authorize ordinary commits to the current branch." Invoking the skill alone is insufficient. If authorization is absent or ambiguous, request it and wait before starting. This covers all ordinary commits in the run without reconfirmation; required platform approvals still apply.
 
 Use the host's built-in subagents. Verify a documented mechanism for launching each reviewer with no inherited coordinator or previous-reviewer conversation, such as `collaboration.spawn_agent` with `fork_turns: "none"` when supported. A separate filesystem is unnecessary; a separate task or an instruction to "ignore previous context" does not establish isolation. Stop if isolation cannot be verified. Do not install or invoke a separate Codex or Claude Code CLI.
 
@@ -79,7 +79,7 @@ A **full suite** runs all checks identified during preparation. A **check run** 
 
 For every check command, compare repository status and content before and after, regardless of exit status. Inspect every tracked-file change and new non-ignored file. Accept only changes justified by the intended fix; stop on unrelated or unexplained changes.
 
-Two independent limits apply to pre-commit checks. Reset their counters only at the start of each pass:
+Two independent limits apply to pre-commit checks within each pass:
 
 - **Failure repairs: at most two attempts.** After a failed check run, repair a verified repository issue or stop. One attempt consists of evidence-backed repair edits followed directly by a full-suite run. The initial failed run consumes no attempt. Stop if checks fail with no attempts remaining.
 - **Changes made by checks: one stabilization rerun.** After the first check run that makes justified content changes, the next run must be a full suite against the resulting content. Multiple commands may change content within that initial run. Stop if any command in the stabilization rerun or a later run changes content again.
@@ -88,11 +88,11 @@ If a run both fails and changes files, the next full suite serves as both repair
 
 ## For each review pass
 
-A pass becomes permanently **non-clean** if its review is not accepted, any finding is verified, or reviewed content changes (even if later reverted). Reset the consecutive-clean count to zero as soon as any of these occurs. Rejected findings alone do not affect the count.
+A pass becomes permanently **non-clean** if its review is not accepted, any finding is verified, or reviewed content changes (even if later reverted). Reset the consecutive-clean count to zero as soon as any of these occurs. Otherwise, the pass qualifies as **clean** once it satisfies **Check and stage content**. Rejected findings alone do not affect the count.
 
 ### Launch reviewer
 
-Increment the pass count, record the current commit, and mark the pass provisionally clean. Launch a new reviewer using the verified isolation mechanism and **Reviewer prompt**. Failed launches and incomplete reviews still consume a pass.
+Increment the pass count and reset the failure-repair and stabilization-rerun counters to zero; this is their only reset point. Record the current commit and mark the pass provisionally clean. Launch a new reviewer using the verified isolation mechanism and **Reviewer prompt**. Failed launches and incomplete reviews still consume a pass.
 
 ### Assess review
 
@@ -133,7 +133,7 @@ Stop the reviewer if it is still running, then close it using the supported life
 
 ### Count clean passes
 
-Increment the consecutive-clean count if the pass remains clean and has satisfied **Check and stage content**. Then apply **Completion and limits**.
+If the pass qualifies as clean, increment the consecutive-clean count. Then apply **Completion and limits**.
 
 ## Completion and limits
 

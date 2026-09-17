@@ -36,7 +36,7 @@ Before each review, edit, or commit, and at completion, verify that the starting
 
 ## Reviewer prompt
 
-Give each reviewer only the completed prompt below. Summarize user requirements without relying on conversation history; use "None specified" if there are none. Do not attach prior findings, fix explanations, or this skill.
+Give each reviewer only the prompt below with its placeholders filled in. Summarize user requirements without relying on conversation history; use "None specified" if there are none. Do not attach prior findings, fix explanations, or this skill.
 
 ```text
 Repository: <repository location>
@@ -73,17 +73,17 @@ or security of an in-scope component or behavior.
 
 ## Check execution rules
 
-A **full suite** runs all checks identified during preparation. A **check run** is a full suite or a targeted check. Stop if a check requires an unavailable runtime, local service, or other environment prerequisite.
+A **full suite** runs all checks identified during preparation. A **check run** is a full suite or a targeted check. Stop if a check requires an unavailable runtime, local service, or other prerequisite.
 
-Before completing a pass with an accepted review, require a full suite that passes without changing content, unless the no-checks exception applies. Results remain valid only within that pass while content is unchanged; targeted checks do not replace the full suite.
+Before staging or completing a pass with an accepted review, require a full suite that passes without changing content, unless the no-checks exception applies. Results remain valid only within that pass while content is unchanged; targeted checks do not replace the full suite.
 
 Compare repository status and content before and after every check command, regardless of exit status. Stop if any check-induced change falls outside the verified fixes.
 
 The recovery rules below apply only before committing. Post-commit checks follow [Verify commit](#verify-commit).
 
-A **failure-repair attempt** consists of diagnosing a failed check using existing output and static inspection only, repairing a verified repository issue, and immediately running the full suite. Allow at most two attempts per pass; stop if another attempt is needed but none remain or no verified issue can be repaired. Initial reviewer-finding repairs do not consume attempts; repairs in response to failed checks do, even if the reviewer also reported the issue.
+A **failure-repair attempt** consists of diagnosing a failed check using existing output and static inspection only, repairing a verified repository issue, and immediately running the full suite. Allow at most two attempts per pass. Stop if another attempt is needed but none remain, or if no verified issue can be repaired. Only repairs triggered by failed checks consume this allowance, even if the reviewer also reported the issue.
 
-The first check-induced content change requires a **stabilization rerun** of the full suite. From its start through the rest of the pass, stop on any further check-induced content change.
+The first check run that changes content requires a **stabilization rerun** of the full suite, as shown below. From the start of that rerun through the rest of the pass, stop on any further check-induced content change.
 
 Unless a stop condition applies:
 
@@ -96,17 +96,17 @@ Unless a stop condition applies:
 
 ## For each review pass
 
-A pass becomes permanently **non-clean** as soon as any of the following occurs:
+Reset the consecutive-clean count to zero and mark the pass permanently **non-clean** as soon as any of the following occurs:
 
 - Reviewer launch or acceptance fails.
 - A finding is verified, including during checks.
 - Content changes, even if later reverted.
 
-Reset the consecutive-clean count to zero when a pass becomes non-clean. A pass is **clean** only if none of these events occurs and [Check and stage content](#check-and-stage-content) succeeds. Rejected findings alone do not disqualify it.
+A pass is **clean** only if none of these events occurs and [Check and stage content](#check-and-stage-content) succeeds. Rejected findings alone do not disqualify it.
 
 ### Launch reviewer
 
-Increment the attempted-pass count before launch, so failed launches and rejected reviews count toward the limit. Start with zero failure-repair attempts and no stabilization rerun started. Launch a fresh reviewer of the expected local HEAD using the required isolation and [Reviewer prompt](#reviewer-prompt).
+Increment the attempted-pass count before launch; failed launches and unaccepted reviews count toward the limit. Start with zero failure-repair attempts and no stabilization rerun started. Launch a fresh reviewer of the expected local HEAD using the required isolation and [Reviewer prompt](#reviewer-prompt).
 
 ### Assess review
 

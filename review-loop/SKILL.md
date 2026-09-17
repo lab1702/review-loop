@@ -18,7 +18,7 @@ Require host-provided subagents with documented support for starting without coo
 ## Run boundaries
 
 - Use only the existing local repository. Do not access remote services, query or modify remotes, or fetch, pull, or push. This applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
-- Do not amend commits, rewrite history, create or switch branches, discard work, include unrelated work, or weaken tests/checks.
+- Do not amend commits, rewrite history, create or switch branches, discard user or outside-run work, include unrelated work, or weaken tests/checks. While the run is active, you may revise or revert your own uncommitted fix attempts.
 - Keep review artifacts (transcripts, finding inventories, and run logs) in the conversation, outside the working tree, or in an already-ignored location. Never commit them.
 
 **Content changes** are edits, additions, or deletions of tracked or non-ignored untracked files. A **clean working tree** has no staged changes, unstaged changes, or non-ignored untracked files.
@@ -81,18 +81,18 @@ Compare repository status and content before and after every check command, rega
 
 The recovery rules below apply only before committing. Post-commit checks follow [Verify commit](#verify-commit).
 
-A **failure-repair attempt** consists of diagnosing a failed check using existing output and static inspection only, repairing a verified repository issue, and immediately running the full suite. Allow at most two attempts per pass. Stop if another attempt is needed but none remain, or if no verified issue can be repaired. Only repairs triggered by failed checks consume this allowance, even if the reviewer also reported the issue.
+A **failure-repair attempt** consists of diagnosing a failed check using existing output and static inspection only, then repairing a verified repository issue. Allow at most two attempts per pass. Stop if another attempt is needed but none remain, or if no verified issue can be repaired. Only repairs triggered by failed checks consume this allowance, even if the reviewer also reported the issue.
 
-The first check run that changes content requires a **stabilization rerun** of the full suite, as shown below. From the start of that rerun through the rest of the pass, stop on any further check-induced content change.
+A **stabilization rerun** is the first full suite after a content-changing check run. From its start through the rest of the pass, stop on any further check-induced content change.
 
-Unless a stop condition applies:
+Finish every command in the current check run before applying this table, unless a stop condition requires an immediate stop:
 
 | Check-run result | Required next action |
 | --- | --- |
 | Success without content changes | Continue. |
-| Failure without content changes | Perform one failure-repair attempt. |
+| Failure without content changes | Perform one failure-repair attempt, then immediately run the full suite. |
 | Success with content changes | Run the stabilization rerun next. |
-| Failure with content changes | Perform one failure-repair attempt, using its full suite as the stabilization rerun. |
+| Failure with content changes | Perform one failure-repair attempt, then immediately run the full suite as the stabilization rerun. |
 
 ## For each review pass
 

@@ -9,16 +9,15 @@ Success requires two consecutive clean review passes on the same unchanged commi
 
 ## Launch requirements
 
-Require explicit authorization for **ordinary commits**: new local commits on the starting branch. For example: "I authorize ordinary commits to the current branch." Skill invocation alone is insufficient. If authorization is absent or ambiguous, request it and wait; once given, it covers the entire run.
+Require explicit authorization for **ordinary commits**: new local commits on the starting branch. For example: "I authorize ordinary commits to the current branch." Invocation alone does not authorize commits. If authorization is missing or unclear, request it and wait; it covers the entire run once given.
 
-Use the host's built-in subagents and verify that reviewers can start without coordinator or prior reviewer conversation, such as documented `collaboration.spawn_agent` support for `fork_turns: "none"`. Stop if this isolation cannot be verified. A separate task or an instruction to "ignore previous context" is insufficient; a separate filesystem is unnecessary. Do not install or invoke a separate Codex or Claude Code CLI.
+Use the host's built-in subagents. Verify that reviewers can start without inheriting coordinator or prior reviewer conversations, for example through documented `collaboration.spawn_agent` support for `fork_turns: "none"`. Stop if this isolation cannot be verified. A separate task or an instruction to "ignore previous context" is insufficient; a separate filesystem is unnecessary. Do not install or invoke a separate Codex or Claude Code CLI.
 
 ## Run boundaries
 
 - Work only with the existing local repository. Do not access remote services, query or modify remotes, or fetch, pull, or push. This boundary applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
 - Do not amend commits, rewrite history, create or switch branches, discard work, include unrelated work, or weaken tests/checks.
 - Keep review transcripts, finding inventories, and run logs in the conversation, outside the working tree, or in an already-ignored location. Never commit them.
-- On any stop, follow [Completion and limits](#completion-and-limits).
 
 ## Preparation
 
@@ -75,11 +74,11 @@ materially affect correctness or security.
 
 ## Check execution rules
 
-A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check. Use targeted checks to diagnose or verify a fix only when a full suite is not required next.
+A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check. Use targeted checks to diagnose or verify fixes, except during failed-check recovery or when a full suite is required next.
 
 For every check command, compare repository status and content before and after, regardless of exit status. Stop on any content change not justified by the intended fix.
 
-The rules below apply before committing. Each pass allows at most **two failure-repair attempts** and **one stabilization rerun**. Post-commit checks follow [Verify commit](#verify-commit) instead.
+The pre-commit rules below allow at most **two failure-repair attempts** and **one stabilization rerun** per pass. Post-commit checks follow [Verify commit](#verify-commit) instead.
 
 ### Failed checks
 
@@ -97,11 +96,13 @@ After the first check run that makes justified content changes:
 1. Run a full suite next; this is the stabilization rerun.
 2. Stop if any check command changes content during the stabilization rerun or any later run.
 
-If the first content-changing check run also fails, follow [Failed checks](#failed-checks) before the stabilization rerun. The next full suite serves both purposes, consuming one repair attempt and the stabilization rerun. A stabilization rerun without a preceding failure consumes no repair attempt.
+If the first content-changing check run also fails, follow [Failed checks](#failed-checks); the next full suite consumes both one repair attempt and the stabilization rerun. Otherwise, the stabilization rerun consumes no repair attempt.
 
 ## For each review pass
 
-A pass becomes permanently **non-clean** if reviewer launch or acceptance fails, any finding is verified (including during checks), or content changes (even if later reverted). Reset the consecutive-clean count to zero immediately. Otherwise, the pass is **clean** once [Check and stage content](#check-and-stage-content) succeeds. Rejected findings alone do not disqualify it.
+A pass becomes permanently **non-clean** if reviewer launch or acceptance fails, any finding is verified (including during checks), or content changes, even if later reverted. Reset the consecutive-clean count to zero immediately.
+
+Otherwise, the pass is **clean** once [Check and stage content](#check-and-stage-content) succeeds. Rejected findings alone do not disqualify it.
 
 ### Launch reviewer
 
@@ -122,8 +123,6 @@ Resolve all verified findings before proceeding. Finding repairs have no separat
 - Required information or a consequential choice cannot be inferred, or required authorization is missing.
 - A finding cannot be resolved within scope.
 - No evidence-backed next step remains, or attempts repeat without progress.
-
-Check failures follow [Check execution rules](#check-execution-rules).
 
 ### Check and stage content
 
@@ -150,7 +149,7 @@ Stop if any requirement cannot be verified, or if post-commit checks fail or cha
 
 ### Retire reviewer
 
-Stop any still-running reviewer and close it if supported. Never reuse or resume a retired reviewer.
+Interrupt any still-running reviewer and close it if supported. Never reuse or resume a retired reviewer. Retiring a reviewer does not itself end the run.
 
 ## Completion and limits
 
@@ -161,7 +160,7 @@ At the end of each pass, increment the consecutive-clean count if the pass is cl
 
 On every exit, follow [Retire reviewer](#retire-reviewer) for any remaining reviewer, preserve local commits and uncommitted changes, and produce the [Final report](#final-report).
 
-Any stop ends the run as **blocked**, with no further passes or resumption. The user must resolve the blocker and restore a clean working tree before starting a new run from [Launch requirements](#launch-requirements).
+An instruction to **stop** ends the run as **blocked**; do not start further passes or resume that run. The user must resolve the blocker and restore a clean working tree before starting a new run from [Launch requirements](#launch-requirements).
 
 ## Final report
 

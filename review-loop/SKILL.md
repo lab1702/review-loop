@@ -7,7 +7,7 @@ description: Run independent whole-repository reviews with verified fixes, check
 
 Review the whole repository and fix verified issues until two consecutive passes are clean on the same unchanged commit, within 10 attempted passes.
 
-In this skill, **stop** means end the run as **blocked**; do not resume it.
+In this skill, **stop** means end the current run as **blocked**. A new run must follow the restart requirements in [Completion and limits](#completion-and-limits).
 
 ## Launch requirements
 
@@ -70,8 +70,8 @@ refactoring. If you find no actionable issues, say so explicitly.
 
 State what you reviewed. For each excluded or unavailable category or path,
 give the reason and any residual coverage gap with its potential impact.
-A material coverage gap is an unreviewed component or behavior that could
-materially affect correctness or security.
+A material coverage gap prevents a supported conclusion about the correctness
+or security of an in-scope component or behavior.
 ```
 
 ## Check execution rules
@@ -84,8 +84,13 @@ For every check command, compare repository status and content before and after,
 
 Apply the following recovery rules before running further checks. They apply only before committing; post-commit checks follow [Verify commit](#verify-commit).
 
-- **Failed check run:** Allow at most two **failure-repair attempts** per pass; stop if none remain. Diagnose using existing output and static inspection only, then repair a verified repository issue or stop. Each attempt consists of one repair followed immediately by a full suite, regardless of the suite's result.
-- **First justified check-induced change:** Run a full suite next as the **stabilization rerun**. If the check run also failed, repair it under the failure rule first; the following suite consumes one repair attempt and serves as the stabilization rerun.
+A **failure-repair attempt** consists of diagnosis using existing output and static inspection only, repair of a verified repository issue, and an immediate full suite. Allow at most two attempts per pass, counted regardless of the suite's result. After a failed check run, stop if no attempts remain or no verified repository issue can be repaired.
+
+| Check-run result | Required next action |
+| --- | --- |
+| Failure without content changes | Perform one failure-repair attempt. |
+| Success with the first justified check-induced change | Run a full suite next as the **stabilization rerun**. |
+| Failure with the first justified check-induced change | Perform one failure-repair attempt; its full suite also serves as the stabilization rerun. |
 
 ## For each review pass
 

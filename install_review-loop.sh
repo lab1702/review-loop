@@ -2,7 +2,7 @@
 
 set -e
 
-script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 skill_source="$script_dir/review-loop"
 
 for required_file in "$skill_source/SKILL.md" "$skill_source/agents/openai.yaml"; do

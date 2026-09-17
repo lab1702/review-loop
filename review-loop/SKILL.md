@@ -15,7 +15,8 @@ Use the host's built-in subagents. Verify a documented mechanism for launching e
 
 ## Run boundaries
 
-- Do not push, rewrite history, bypass branch protection, modify remote configuration or remote branches, create or switch branches, discard work, include unrelated work, or weaken tests/checks. Fetching to refresh remote-tracking references is permitted.
+- Work only with the existing local repository. Do not access GitHub or other remote services, query or modify remotes, or fetch, pull, or push. The human handles all remote synchronization. This boundary also applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
+- Do not rewrite history, create or switch branches, discard work, include unrelated work, or weaken tests/checks.
 - Keep coordinator findings, fix explanations, and review logs out of the committed codebase.
 - A stop condition ends the run as **blocked**. Follow **Completion and limits** for cleanup and reporting; do not start another pass to bypass a stop.
 
@@ -24,19 +25,15 @@ Use the host's built-in subagents. Verify a documented mechanism for launching e
 ### Starting-state requirements
 
 - Follow AGENTS.md, CLAUDE.md, and the repository's instructions.
-- Stop if HEAD is detached, the working tree is not clean, or the branch has no configured upstream.
-- Record the checked-out branch as the **starting branch** and its configured upstream (remote, remote URL, and destination branch). Any branch, including main, is supported.
-- Establish that the remote identifies a GitHub.com or GitHub Enterprise repository, resolving SSH aliases and URL rewrites. For Enterprise, use project documentation or authenticated host metadata; a suggestive hostname alone is insufficient. Stop if the host or repository identity cannot be established.
-- Perform an **upstream refresh**: verify the destination branch with a live remote query or fetch, refresh its remote-tracking reference using the existing configuration, and confirm both identify the same commit. Stop if the branch is missing, access fails, or the commits differ.
-- Require the starting branch to match the refreshed upstream commit. Record it as both the **expected local HEAD** and the **expected upstream commit**; local fix commits may later put HEAD ahead of upstream.
+- Require an existing local Git working tree with a valid HEAD commit on a checked-out branch. Stop if the repository or commit is missing, HEAD is detached, or there are staged changes, unstaged changes, or non-ignored untracked files.
+- Record the checked-out branch as the **starting branch** and its current commit as the **expected local HEAD**. Any branch, including main, is supported; no remote or upstream is required.
 - Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope. A required or selected check that cannot run is a blocker.
 - If no checks are required and no relevant runnable checks exist, record the **no-checks exception**, which waives check execution only.
 - Initialize the review-pass and consecutive-clean counters to zero.
 
 ### Invariants during the run
 
-- Before each review, before editing or committing, and at completion, verify that the starting branch is checked out, its upstream configuration is unchanged, and HEAD matches the expected local HEAD. Only **Verify commit** may advance the expected local HEAD.
-- After preparation, every **upstream refresh** must match the fixed expected upstream commit.
+- Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Only **Verify commit** may advance the expected local HEAD.
 - On any mismatch or unrelated working-tree change, stop. Do not merge, rebase, reset, or adopt outside changes to continue.
 
 ## Reviewer prompt
@@ -55,14 +52,16 @@ snapshot or only a diff. Follow applicable project instructions.
 
 Inventory generated files, vendored dependencies, binaries, and submodules.
 Review their integration and relevant correctness or security risks; inspect
-submodules at their recorded commits when available. You may omit detailed
+submodules at their recorded commits when available locally. You may omit detailed
 inspection of generated or vendored content when reviewing its maintained
 inputs or integration is sufficient.
 
+Use only locally available files and Git objects. Do not access GitHub or
+other remote services, query or modify remotes, or fetch, pull, or push.
 Use only static, read-only inspection commands. Do not execute tests,
 builds, or repository scripts; the coordinator runs checks. Do not consult
 earlier review artifacts, modify files, switch or create branches, change
-commits, or alter remote state.
+commits.
 
 Report concrete, actionable findings with file/line references, triggering
 scenarios, and impact. Do not request cosmetic changes or speculative
@@ -115,7 +114,7 @@ If fixes exist, stage only those fixes. Verify that the staged files match the c
 
 ### Commit fixes
 
-Apply the run invariants and perform an **upstream refresh**. If fixes exist, verify that the staged tree still matches the recorded tree ID, then commit to the starting branch. Otherwise, proceed to **Retire reviewer** without creating an empty commit.
+Apply the run invariants. If fixes exist, verify that the staged tree still matches the recorded tree ID, then commit to the starting branch. Otherwise, proceed to **Retire reviewer** without creating an empty commit.
 
 If the commit command fails, including hook rejection, stop. Inspect and report HEAD, the index, and working tree so the user knows whether a commit was created and what remains uncommitted. Do not repair, retry the commit, or bypass hooks.
 
@@ -138,20 +137,19 @@ Increment the consecutive-clean count if the pass remains clean and has satisfie
 
 ## Completion and limits
 
-- When the consecutive-clean count reaches two, apply the run invariants and perform an **upstream refresh**. Verify that both passes reviewed the same unchanged commit and the working tree is clean. If verification succeeds, finish as **completed**; otherwise stop. Local fix commits awaiting a human push are compatible with success.
+- When the consecutive-clean count reaches two, apply the run invariants. Verify that both passes reviewed the same unchanged commit and the working tree is clean. If verification succeeds, finish as **completed**; otherwise stop.
 - If success has not been achieved by the end of pass 10, stop. Otherwise start the next pass.
 
 On every exit, retire any remaining reviewer, preserve local commits and uncommitted changes, and produce the **Final report**.
 
-A blocked run cannot resume. The user must resolve the blocker, handle remaining changes, and synchronize the branch with its GitHub upstream before launching a new run under **Launch requirements** and **Preparation**.
+A blocked run cannot resume. The user must resolve the blocker and restore a clean local working tree before launching a new run under **Launch requirements** and **Preparation**.
 
 ## Final report
 
 - Outcome: completed or blocked. If blocked, explain the blocker and what must be resolved before a new run.
-- Starting branch, recorded upstream, and final commit. Mark unavailable or unverified Git values explicitly and explain why.
+- Starting branch and final commit. Mark unavailable or unverified Git values explicitly and explain why.
 - Fixes, checks and their results (or the no-checks exception), review coverage, and remaining limitations.
 - Total review passes and consecutive clean passes.
-- Confirmation that the loop did not push, known local commits awaiting a human push, and any uncommitted changes.
-- Whether HEAD matches, is ahead, is behind, or has diverged from the upstream, when local HEAD and a refreshed upstream are both verified.
+- Local commits created during the run, any uncommitted changes, and whether all operations stayed local.
 
 Do not claim that the repository is guaranteed bug-free.

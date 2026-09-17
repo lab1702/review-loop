@@ -22,9 +22,11 @@ Both installations require explicit invocation. Codex uses `policy.allow_implici
 
 ## Usage
 
-Check out the branch you want reviewed before starting. The loop works on that branch (including `main`) and never creates or switches branches. It requires a clean working tree matching an existing GitHub upstream; configure and synchronize the upstream yourself before launching. If the checked-out branch or upstream configuration changes during the run, the loop stops. Verified fixes are committed locally after checks pass. The loop never pushes; successful completion can leave local fix commits for you to push manually.
+Start in an existing local Git repository and check out the branch you want reviewed. The branch must have a commit and a clean working tree: no staged changes, unstaged changes, or non-ignored untracked files. The loop works on that branch (including `main`) and never creates or switches branches. If the checked-out branch changes or HEAD changes outside the loop's verified commits, the loop stops. Verified fixes are committed locally after checks pass.
 
-If a run is blocked, its local commits and uncommitted fixes are preserved. Resolve the blocker, handle remaining changes, and synchronize the branch with its GitHub upstream before launching a new run with commit authorization. A new run starts its review counters at zero.
+The loop operates only on the local repository and does not access GitHub or other remote services. No remote or upstream is required. You handle all fetching, pulling, and pushing. Reviewers, checks, and hooks must also operate locally; a required operation that needs remote access blocks the run.
+
+If a run is blocked, its local commits and uncommitted fixes are preserved. Resolve the blocker and restore a clean local working tree before launching a new run with commit authorization. A new run starts its review counters at zero.
 
 In the Codex chat window:
 

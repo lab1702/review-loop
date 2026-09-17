@@ -7,6 +7,8 @@ description: Run independent whole-repository reviews with verified fixes, check
 
 Success requires two consecutive clean review passes on the same unchanged commit within 10 attempted passes.
 
+In this skill, **stop** means end the run as **blocked**, without starting further passes or resuming that run.
+
 ## Launch requirements
 
 Require explicit authorization to create new local commits on the starting branch, for example: "I authorize ordinary commits to the current branch." Invocation alone does not authorize commits. If authorization is missing or unclear, request it and wait; it covers the entire run once given.
@@ -78,12 +80,18 @@ A **full suite** runs all checks identified during preparation. A **check run** 
 
 For every check command, compare repository status and content before and after, regardless of exit status. Stop on any content change not justified by the intended fix.
 
+At the start of each pass, before launching the reviewer, reset the failure-repair count to zero and mark the stabilization rerun as unused. Do not reset either state again within that pass.
+
 Before committing, apply these recovery rules after each check run. Post-commit checks follow [Verify commit](#verify-commit) instead.
 
-- **Failure:** Allow at most two **failure-repair attempts** per pass; stop if none remain. Diagnose using only existing output and static inspection, then repair a verified repository issue or stop. Run a full suite after the repair. The repair and its following suite consume one attempt, whether that suite passes or fails.
-- **First justified check-induced content change in the pass:** Run a full suite next as the **stabilization rerun**, repairing any failure first. Stop immediately if any check command changes content during this rerun or any later run in the pass.
+| Condition | Required action |
+| --- | --- |
+| Any check command changes content during the stabilization rerun or a later run in the pass | Stop immediately. |
+| A check run fails | Allow at most two **failure-repair attempts** per pass; stop if none remain. Diagnose using only existing output and static inspection, then repair a verified repository issue or stop. Run a full suite next. The repair and its following suite consume one attempt, whether that suite passes or fails. |
+| First justified check-induced content change in the pass | Run a full suite next as the **stabilization rerun**, repairing any failure first. |
+| A check run passes with no content changes | Continue to the next required step. |
 
-When both rules apply, the same full suite counts toward the repair attempt and serves as the stabilization rerun. A passing run with no content changes needs no recovery; continue to the next required step.
+When a run both fails and makes the first justified content change, apply both recovery rules: the same full suite counts toward the repair attempt and serves as the stabilization rerun.
 
 ## For each review pass
 
@@ -93,7 +101,7 @@ Otherwise, the pass is **clean** once [Check and stage content](#check-and-stage
 
 ### Launch reviewer
 
-Increment the pass count and record the current commit, even if launch or review later fails. Reset the failure-repair count and stabilization-rerun state only here. Launch a new reviewer using the verified isolation mechanism and [Reviewer prompt](#reviewer-prompt).
+Increment the pass count and record the current commit, even if launch or review later fails. Launch a new reviewer using the verified isolation mechanism and [Reviewer prompt](#reviewer-prompt).
 
 ### Assess review
 
@@ -146,8 +154,6 @@ At the end of each pass, increment the consecutive-clean count if the pass is cl
 - If success has not been achieved by the end of pass 10, stop with the reason **review-pass limit reached**. Otherwise start the next pass.
 
 On every exit, follow [Retire reviewer](#retire-reviewer) for any remaining reviewer, preserve local commits and uncommitted changes, and produce the [Final report](#final-report).
-
-In this skill, **stop** means end the run as **blocked**, without starting further passes or resuming that run.
 
 Before a new run, the user must resolve any underlying blocker and ensure the working tree is clean. If the run stopped solely at the ten-pass limit, no repository changes are required and the user may immediately invoke a new run. Every new run begins at [Launch requirements](#launch-requirements) with fresh counters.
 

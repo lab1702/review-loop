@@ -60,6 +60,7 @@ class InstallerCases:
         runner = Path(tempfile.mkdtemp(prefix='runner-', dir=self.root))
         env = dict(self.env)
         if failure:
+            env['REVIEW_LOOP_FAILURE_MARKER'] = str(runner / 'failure-reached')
             if engine == 'bash':
                 program = 'cp' if failure == 'copy' else 'mv'
                 original = shutil.which(program)
@@ -67,13 +68,16 @@ class InstallerCases:
                 bin_dir.mkdir()
                 shim = bin_dir / program
                 # Fail preparation or activation of the second destination.
+                guard = '"$last" == *"/.claude/"*'
+                if failure != 'copy':
+                    guard += ' && "$previous" == */new'
                 shim.write_text(
                     '#!/usr/bin/env bash\n'
                     'for arg in "$@"; do previous="$last"; last="$arg"; done\n'
-                    'if [[ "$last" == *"/.claude/"* ]]; then\n'
-                    + ('  exit 73\n' if failure == 'copy' else
-                       '  if [[ "$previous" == */new ]]; then exit 73; fi\n')
-                    + 'fi\nexec "' + original + '" "$@"\n')
+                    f'if [[ {guard} ]]; then\n'
+                    '  : > "$REVIEW_LOOP_FAILURE_MARKER"\n'
+                    '  exit 73\n'
+                    'fi\nexec "' + original + '" "$@"\n')
                 shim.chmod(0o755)
                 env['PATH'] = str(bin_dir) + os.pathsep + os.environ['PATH']
             else:
@@ -84,7 +88,10 @@ class InstallerCases:
                 text = f'''function {command} {{
     [CmdletBinding()]
     param([string]$LiteralPath, [string]$Destination, [switch]$Force, [switch]$Recurse)
-    if ({guard}) {{ throw 'Injected installation failure' }}
+    if ({guard}) {{
+        [System.IO.File]::WriteAllText($env:REVIEW_LOOP_FAILURE_MARKER, '')
+        throw 'Injected installation failure'
+    }}
     Microsoft.PowerShell.Management\\{command} @PSBoundParameters
 }}
 ''' + text
@@ -126,8 +133,13 @@ class InstallerCases:
 
     def run_installer(self, failure=None):
         command, env = self.prepare_installer(failure=failure)
-        return subprocess.run(command, cwd=self.root, env=env,
-                              capture_output=True, text=True, timeout=30)
+        result = subprocess.run(command, cwd=self.root, env=env,
+                                capture_output=True, text=True, timeout=30)
+        if failure:
+            self.assertTrue(Path(env['REVIEW_LOOP_FAILURE_MARKER']).is_file(),
+                            f'Installer did not reach the injected {failure} failure.\n'
+                            f'Exit code: {result.returncode}\n{result.stdout}{result.stderr}')
+        return result
 
     def test_existing_lock_preserves_installs_and_ownership(self):
         self.seed_installs()

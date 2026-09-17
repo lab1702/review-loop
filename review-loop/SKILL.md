@@ -27,12 +27,22 @@ Do not push, rewrite history, bypass branch protection, modify remote configurat
 
 ## Preparation
 
+### Starting-state requirements
+
 - Follow AGENTS.md, CLAUDE.md, and the repository's instructions.
-- Record the currently checked-out branch as the starting branch and record its configured GitHub upstream (remote, remote URL, and destination branch). Any branch, including main, is supported. Stop if HEAD is detached, the working tree is not clean, or the branch has no verifiable existing GitHub upstream. Refresh the remote state using the existing configuration and verify that the starting branch and upstream resolve to exactly the same commit; do not rely on a stale remote-tracking reference. Stop on a mismatch. The user manages branches: never create or switch branches, discard work, or change upstream configuration to make the preconditions pass.
-- Keep the starting branch and recorded upstream fixed for the entire run. Before each review, before editing or committing, and at completion, verify that the same branch is still checked out and its upstream configuration is unchanged. If either changes, stop as blocked without switching back or continuing on the newly checked-out branch.
-- Record the starting commit as the expected local HEAD and the expected upstream commit. Before each review, before editing or committing, and at completion, verify local HEAD against the expected local HEAD. Advance that expectation only after this loop creates a commit. On remote refreshes, compare the upstream against the expected upstream commit, which remains fixed at the starting commit throughout the run. Local fix commits are expected to put the branch ahead of that upstream. Stop on unexpected commits or unrelated working-tree changes; do not merge, rebase, reset, or adopt outside changes to continue.
+- Record the currently checked-out branch as the starting branch and record its configured GitHub upstream (remote, remote URL, and destination branch). Any branch, including main, is supported.
+- Stop if HEAD is detached, the working tree is not clean, or the branch has no verifiable existing GitHub upstream. Refresh the remote state using the existing configuration and verify that the starting branch and upstream resolve to exactly the same commit; do not rely on a stale remote-tracking reference. Stop on a mismatch.
+- Record the starting commit as both the expected local HEAD and the expected upstream commit.
+- The user manages branches: never create or switch branches, discard work, or change upstream configuration to make the preconditions pass.
 - Identify the required test, lint, type-check, and build commands from applicable project requirements. If none are specified, select relevant available checks and state their scope; do not invent mandatory commands. Run the selected checks under the same pass/fail rules as required checks. If no checks are required and no relevant runnable checks exist, record that fact; the loop may succeed based on reviews alone, with this limitation disclosed in the final report. A required check that cannot run is a blocker, not an absence of checks.
 - Track the number of review passes, the consecutive clean-review count, and the commit reviewed in each pass. Start both counters at zero. Keep coordinator findings, fix explanations, and review logs out of reviewer prompts and out of the committed codebase.
+
+### Invariants during the run
+
+- Keep the starting branch and recorded upstream fixed for the entire run. Before each review, before editing or committing, and at completion, verify that the same branch is still checked out and its upstream configuration is unchanged. If either changes, stop as blocked without switching back or continuing on the newly checked-out branch.
+- Before each review, before editing or committing, and at completion, verify local HEAD against the expected local HEAD. Advance that expectation only after this loop creates and verifies a commit.
+- On remote refreshes, compare the upstream against the expected upstream commit, which remains fixed at the starting commit throughout the run. Local fix commits are expected to put the branch ahead of that upstream.
+- Stop on unexpected commits or unrelated working-tree changes; do not merge, rebase, reset, or adopt outside changes to continue.
 
 ## Reviewer prompt
 
@@ -58,6 +68,10 @@ inputs or integration is sufficient. List each excluded category or path,
 the reason, and any residual coverage gap. Unavailable content is a coverage
 gap to assess, not an automatic exclusion from scope.
 
+Use static inspection only. Do not execute tests, builds, or repository
+scripts; the coordinator runs checks after the review. You may use read-only
+inspection commands to examine committed content.
+
 Do not consult earlier review artifacts, modify files, switch or create
 branches, change commits, or alter remote state.
 
@@ -76,10 +90,10 @@ so the coordinator can assess whether it prevents a clean pass.
 1. Increment the pass count and record the current commit. Launch a NEW, read-only reviewer with verified fresh conversation context using only the completed Reviewer prompt above. Do not pass the entire skill or its coordinator, editing, or commit instructions to the reviewer. Do not provide prior findings, fix explanations, review logs, or conversation history.
 2. Wait for the reviewer to finish before editing. Inspect its output for errors, completeness, and coverage, and assess the potential impact of any reported gaps.
 3. If the review has an error, missing output, is incomplete, or has a material coverage gap, mark the pass non-clean and reset the consecutive-clean count. Close or retire the reviewer as described in step 6. If a fresh review can address the problem with available capabilities and fewer than 10 passes have been attempted, start the next pass at step 1 without editing or committing in this pass. Otherwise, stop as blocked and explain the problem. For a complete review with no material coverage gaps, proceed to step 4.
-4. Validate each finding against the reviewed commit. Record why any finding is rejected; a rejected finding alone does not prevent a clean pass. Fix genuine issues and add regression tests where appropriate. Do not weaken tests or checks. Make routine implementation decisions using the user's instructions and repository guidance. If a fix requires missing requirements, additional authorization, or a consequential choice that cannot be inferred from that guidance, stop as blocked and identify the input needed before making the decision. After attempting fixes and validation, stop as blocked if any verified finding remains unresolved.
+4. Validate each finding against the reviewed commit. Record why any finding is rejected; a rejected finding alone does not prevent a clean pass. Fix genuine issues and add regression tests where appropriate. Any required or selected checks run during this step are subject to the same per-pass repair limit defined in step 5. Do not weaken tests or checks. Make routine implementation decisions using the user's instructions and repository guidance. If a fix requires missing requirements, additional authorization, or a consequential choice that cannot be inferred from that guidance, stop as blocked and identify the input needed before making the decision. After attempting fixes and validation, stop as blocked if any verified finding remains unresolved.
 5. Check the resulting state, commit any fixes, and verify the commit in this order:
 
-   **Checks:** Run all required or selected checks, including on passes with no fixes. If checks fail because of a verified repository issue, allow at most two repair attempts in this pass. Each attempt must address an identified cause and be followed by a rerun of all required or selected checks. Stop as blocked if checks still fail after the second attempt, no evidence-backed repair is available, or a required or selected check cannot run. Do not start another review pass to reset this repair limit. If preparation established the no-checks exception, proceed with that recorded limitation.
+   **Checks:** Run all required or selected checks, including on passes with no fixes. If checks fail because of a verified repository issue, allow at most two repair attempts in total across this pass, including checks run during step 4. Post-commit verification retains its stop-on-failure rule below; it does not permit additional repairs. A repair attempt is a set of changes addressing an identified cause of a required or selected check failure, followed by a rerun of all required or selected checks. Count these attempts from the first such failure, regardless of which step ran the check; entering a new step does not reset the count. Stop as blocked if checks still fail after the second attempt, no evidence-backed repair is available, or a required or selected check cannot run. Do not start another review pass to reset this repair limit. If preparation established the no-checks exception, proceed with that recorded limitation.
 
    **Commit:** Once checks pass or the no-checks exception applies, verify that only intended changes are included, refresh and recheck the upstream, and stop on unexpected remote changes. If fixes exist, record the exact content being committed and its check results (or the no-checks exception), then commit the fixes to the starting branch under the launch authorization. Do not create empty commits for clean passes. If there are no fixes, proceed to step 6.
 

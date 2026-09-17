@@ -41,6 +41,7 @@ Throughout the run, do not push, rewrite history, bypass branch protection, modi
 - Before each review, before editing or committing, and at completion, verify the starting branch is still checked out, its upstream configuration is unchanged, and HEAD matches the expected local HEAD. Stop as blocked on any mismatch; do not switch back or adopt the new state. Advance the expected local HEAD only after this loop creates and verifies a commit.
 - At every upstream refresh, repeat preparation's live remote and remote-tracking verification. The upstream must still match the expected upstream commit, fixed at the starting commit throughout the run. Local fix commits may put HEAD ahead of it.
 - Stop on unexpected commits or unrelated working-tree changes; do not merge, rebase, reset, or adopt outside changes to continue.
+- Before any early exit, follow **Retire reviewer** for any launched reviewer that has not yet been retired.
 
 ## Reviewer prompt
 
@@ -89,13 +90,13 @@ Follow these phases in order unless a phase explicitly directs otherwise.
 
 ### Launch reviewer
 
-Increment the pass count, record the current commit, and initialize this pass's non-clean flag to false. Once marked non-clean, the pass stays non-clean. Any change to reviewed content during the pass marks it non-clean and resets the consecutive-clean count, even if the original content is later restored. Launch a new reviewer using the verified fresh-context mechanism and only the completed **Reviewer prompt**. Do not pass the entire skill or coordinator instructions.
+Increment the pass count, record the current commit, and initialize this pass's non-clean flag to false. Marking a pass non-clean immediately resets the consecutive-clean count to zero and keeps the flag true for the rest of the pass. Any change to reviewed content marks the pass non-clean, even if the original content is later restored. Launch a new reviewer using the verified fresh-context mechanism and only the completed **Reviewer prompt**. Do not pass the entire skill or coordinator instructions.
 
 ### Assess review
 
 Wait for the reviewer to finish before editing. Inspect its output for errors, completeness, and coverage, and assess the potential impact of any reported gaps.
 
-If the review has an error, missing output, is incomplete, or has a material coverage gap, mark the pass non-clean and reset the consecutive-clean count. Follow **Retire reviewer**. If a fresh review can address the problem with available capabilities and the pass limit allows another review, return to **Launch reviewer** without editing or committing in this pass. Otherwise, stop as blocked and explain the problem. For a complete review with no material coverage gaps, continue to **Validate and fix findings**.
+If the review has an error, missing output, is incomplete, or has a material coverage gap, mark the pass non-clean. Follow **Retire reviewer**. If a fresh review can address the problem with available capabilities and the pass limit allows another review, return to **Launch reviewer** without editing or committing in this pass. Otherwise, stop as blocked and explain the problem. For a complete review with no material coverage gaps, continue to **Validate and fix findings**.
 
 ### Validate and fix findings
 
@@ -107,16 +108,16 @@ Make routine implementation decisions using the user's instructions and reposito
 
 Run all checks, including on passes with no fixes, unless the recorded no-checks exception applies.
 
-A **check execution** is one check command. A **suite run** executes all checks against the current content. A targeted execution during **Validate and fix findings** counts as a partial suite run for both limits below. It cannot establish that the full suite passes; if it makes justified content changes, the next suite run must be a full stabilization rerun.
+A **check execution** is one check command. A **suite run** is either a full run of all checks against the current content or a partial run consisting of one targeted check. Both are subject to the limits below; only a full run can establish that all checks pass.
 
 For every check execution, compare repository status and content before and after execution, regardless of exit status. Inspect every change to tracked files and every new non-ignored file; retain it only when justified by the intended fix. Stop as blocked on unrelated or unexplained changes and preserve them for the user.
 
 Two independent limits apply across the entire pass, including checks run during **Validate and fix findings**:
 
-- **Failure repairs: at most two attempts.** If checks fail because of a verified repository issue, a repair attempt consists of changes addressing an identified failure cause followed by a full suite run. The initial failed suite run does not itself consume an attempt. Stop if no evidence-backed repair is available or checks still fail after the second attempt.
-- **Changes made by checks: one stabilization rerun.** The first suite run that makes justified content changes marks the pass non-clean and requires a full suite rerun against the resulting content. Multiple check commands may make justified changes within that initial suite run; they collectively use one allowance. If any check execution in the stabilization rerun or any later suite run in this pass changes content again, stop as blocked. Repairs or transitions between phases do not reset this allowance.
+- **Failure repairs: at most two attempts.** If a full or partial run fails because of a verified repository issue, count one repair attempt when changes addressing an identified failure cause begin. The next check execution after the repair must begin a new full suite run. The initial failed run does not itself consume an attempt. Stop if no evidence-backed repair is available or checks still fail after the second attempt.
+- **Changes made by checks: one stabilization rerun.** The first suite run that makes justified content changes requires the next run to be a full stabilization rerun against the resulting content. Multiple check commands may make justified changes within that initial suite run; they collectively use one allowance. If any check execution in the stabilization rerun or any later suite run in this pass changes content again, stop as blocked. Repairs or transitions between phases do not reset this allowance.
 
-If a suite run both fails and changes files, apply both rules: inspect its changes, make an evidence-backed repair if an attempt remains, then run the full check suite. That rerun counts as both the repair attempt's verification and the stabilization rerun. A stabilization rerun without a failure repair consumes no repair attempt. Begin a new suite run after any coordinator repair; do not extend the previous run to avoid a limit. Stop as soon as either limit requires it, even if the other has capacity left. Do not start another review pass to reset either limit. Post-commit checks follow **Verify commit**, which permits no repairs.
+If a suite run both fails and changes files, apply both rules: inspect its changes, make an evidence-backed repair if an attempt remains, then run the full check suite. That rerun counts as both the repair attempt's verification and the stabilization rerun. A stabilization rerun without a failure repair consumes no repair attempt. Stop as soon as either limit requires it, even if the other has capacity left. Do not start another review pass to reset either limit. Post-commit checks follow **Verify commit**, which permits no repairs.
 
 ### Record checked content
 
@@ -136,11 +137,11 @@ If commit hooks changed the committed content, inspect the differences for inten
 
 ### Retire reviewer
 
-Close the finished reviewer using the supported lifecycle mechanism. If no close operation exists, retire the completed reviewer and never reuse or resume it for another pass. When **Assess review** directed retirement, follow that phase's retry-or-stop decision; otherwise continue to **Count clean passes**.
+Stop the reviewer if it is still running, then close it using the supported lifecycle mechanism. If no close operation exists, consider the reviewer retired and never reuse or resume it for another pass. On an early exit, proceed directly to **Final report** after cleanup. Otherwise, when **Assess review** directed retirement, follow that phase's retry-or-stop decision; for a completed pass, continue to **Count clean passes**.
 
 ### Count clean passes
 
-Increment the consecutive-clean count only if the pass's non-clean flag is false, the review is complete with no material coverage gaps, validation found no genuine issues, checks pass (or the recorded no-checks exception applies), and the reviewed commit and content remain unchanged. Otherwise reset it to zero. A fix commit needs a new review. Changes between passes also reset the count, even if later reverted; unexpected changes trigger the run invariants.
+Increment the consecutive-clean count only if the pass's non-clean flag is false, the review is complete with no material coverage gaps, validation found no verified issues, checks pass (or the recorded no-checks exception applies), and the reviewed commit and content remain unchanged. Otherwise mark the pass non-clean. A fix commit needs a new review. Changes between passes also reset the count, even if later reverted; unexpected changes trigger the run invariants.
 
 Apply **Completion and limits** to decide whether to finish or return to **Launch reviewer**.
 

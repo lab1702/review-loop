@@ -33,7 +33,7 @@ Use the host's built-in subagents. Verify that each reviewer can start without i
 ### Invariants during the run
 
 - Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Advance the expected local HEAD only after **Verify commit** succeeds.
-- On any mismatch or unrelated working-tree change, stop. Do not merge, rebase, reset, or adopt outside changes to continue.
+- On any mismatch or unrelated working-tree change, stop. Do not adopt outside changes to continue.
 
 ## Reviewer prompt
 
@@ -76,7 +76,9 @@ materially affect correctness or security.
 
 A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check used to diagnose or verify a fix. Targeted checks cannot substitute for a full suite.
 
-For every check command, compare repository status and content before and after, regardless of exit status. Inspect all tracked-file changes and new non-ignored files; stop on changes not justified by the intended fix.
+**Content changes** are changes to tracked or non-ignored untracked files, including additions and deletions.
+
+For every check command, compare repository status and content before and after, regardless of exit status. Inspect all content changes; stop on changes not justified by the intended fix.
 
 Two independent limits apply to pre-commit checks within each pass:
 
@@ -87,7 +89,7 @@ If a run both fails and changes files, repair the failure before the stabilizati
 
 ## For each review pass
 
-A pass becomes permanently **non-clean** if its review is not accepted, any finding is verified, or reviewed content changes (even if later reverted). Reset the consecutive-clean count to zero as soon as this happens. Otherwise, the pass is **clean** once it satisfies **Check and stage content**. Rejected findings alone do not affect the count.
+A pass becomes permanently **non-clean** if its review is not accepted, any finding is verified, or content changes (even if later reverted). Reset the consecutive-clean count to zero as soon as this happens. Otherwise, the pass is **clean** once it satisfies **Check and stage content**. Rejected findings alone do not affect the count.
 
 ### Launch reviewer
 
@@ -130,11 +132,9 @@ Stop if any requirement cannot be verified, or if post-commit checks fail or cha
 
 Stop any still-running reviewer and close it if supported. Never reuse or resume a retired reviewer.
 
-### Count clean passes
-
-Increment the consecutive-clean count if the pass is clean, then apply **Completion and limits**.
-
 ## Completion and limits
+
+At the end of each pass, increment the consecutive-clean count if the pass is clean, then evaluate these conditions in order:
 
 - When the consecutive-clean count reaches two, verify that both passes reviewed the same unchanged commit and the working tree is clean. If verification succeeds, finish as **completed**; otherwise stop.
 - If success has not been achieved by the end of pass 10, stop. Otherwise start the next pass.

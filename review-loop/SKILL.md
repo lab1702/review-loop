@@ -29,7 +29,7 @@ Throughout the run, do not push, rewrite history, bypass branch protection, modi
 - Perform an **upstream refresh**: verify the destination branch with a live remote query or fetch, refresh its remote-tracking reference using the existing configuration, and confirm both identify the same commit. Stop if the branch is missing, access fails, or the commits differ; a cached reference alone is insufficient.
 - Require the starting branch to match the refreshed upstream commit. Record it as both the **expected local HEAD** and the **expected upstream commit**. The expected upstream commit stays fixed throughout the run; local fix commits may put HEAD ahead of it.
 - The user manages branches: never create or switch branches, discard work, or change upstream configuration to make the preconditions pass.
-- Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope. **Checks** means this set of commands; a required or selected check that cannot run is a blocker.
+- Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope. These commands are the **checks**; running all of them is a **full suite**. A required or selected check that cannot run is a blocker.
 - If no checks are required and no relevant runnable checks exist, record the **no-checks exception**: reviews alone may establish success.
 - Initialize the review-pass and consecutive-clean counters to zero.
 - Keep coordinator findings, fix explanations, and review logs out of the committed codebase.
@@ -78,7 +78,7 @@ gaps before accepting the review.
 
 ## Check execution rules
 
-A **check run** is either the full suite defined during preparation or a single targeted check. A targeted check cannot replace the full suite.
+A **check run** is either a full suite or a single targeted check. A targeted check cannot replace the full suite.
 
 For every check command, compare repository status and content before and after, regardless of exit status. Inspect every tracked-file change and new non-ignored file. Accept only changes justified by the intended fix; stop on unrelated or unexplained changes.
 
@@ -101,9 +101,9 @@ Increment the pass count, record the current commit, and mark the pass provision
 
 ### Assess review
 
-Wait for the reviewer to finish before editing. Accept only complete output with no execution errors or material coverage gaps, as defined in the prompt.
+Wait for the reviewer to finish before editing. Require complete output with no execution errors or material coverage gaps, as defined in the prompt.
 
-Otherwise, mark the pass non-clean and follow **Retire reviewer** without editing or committing. If available capabilities can address the problem, apply **Completion and limits** to decide whether another pass is allowed; otherwise stop.
+If the launch failed or the output does not meet these requirements, mark the pass non-clean and follow **Retire reviewer** without editing or committing. Retry only if available capabilities can address the problem and **Completion and limits** permits another pass; otherwise stop.
 
 ### Validate and fix findings
 
@@ -111,13 +111,11 @@ Validate each finding against the reviewed commit. Record why any finding is rej
 
 Resolve all verified findings before proceeding. Use user instructions and repository guidance for routine decisions. Stop and identify the input needed for missing requirements, additional authorization, or a consequential choice that cannot be inferred. Finding fixes have no separate attempt limit, but stop if no evidence-backed next step remains, attempts repeat without progress, or a finding cannot be resolved within scope.
 
-### Run full check suite
+### Check and stage content
 
-Run all checks under **Check execution rules**, including on passes with no fixes, unless the recorded no-checks exception applies.
+Unless the recorded no-checks exception applies, require a passing full suite that made no content changes, including on passes with no fixes. Reuse such a result from earlier in the current pass only if content has remained unchanged since that run; otherwise run the full suite under **Check execution rules**.
 
-### Record checked content
-
-Once a full suite passes without content changes, or the no-checks exception applies, stage only intended fixes. Verify that the staged files match the checked content, with no unstaged tracked changes or unexplained non-ignored files. Record the staged Git tree ID using `git write-tree` and associate it with the results or exception. Do not modify this content before committing; hook changes are handled in **Verify commit**.
+Stage only intended fixes. Verify that the staged files match the checked content, with no unstaged tracked changes or unexplained non-ignored files. Record the staged Git tree ID using `git write-tree` and associate it with the results or exception. Do not modify this content before committing; hook changes are handled in **Verify commit**.
 
 ### Commit fixes
 
@@ -140,7 +138,7 @@ Stop the reviewer if it is still running, then close it using the supported life
 
 ### Count clean passes
 
-Increment the consecutive-clean count if the pass remains clean and checks pass (or the no-checks exception applies). A non-clean pass leaves the count at zero.
+Increment the consecutive-clean count if the pass remains clean and checks pass (or the no-checks exception applies).
 
 Apply **Completion and limits** to decide whether to finish or return to **Launch reviewer**.
 

@@ -5,7 +5,7 @@ description: Run independent whole-repository reviews with verified fixes, check
 
 # Review Loop
 
-Use the host's built-in subagents to review the whole repository, fix verified issues, run checks, and commit fixes locally to the starting branch. Finish after two consecutive clean reviews of the same unchanged commit, within 10 attempted passes.
+Use the host's built-in isolated subagents to review the whole repository. The coordinator validates findings, fixes verified issues, runs checks, and commits fixes locally to the starting branch. Finish after two consecutive clean reviews of the same unchanged commit, within 10 attempted passes.
 
 ## Launch authorization
 
@@ -60,9 +60,8 @@ Inventory generated files, vendored dependencies, binaries, and submodules.
 Review their integration and relevant correctness or security risks; inspect
 submodules at their recorded commits when available. You may omit detailed
 inspection of generated or vendored content when reviewing its maintained
-inputs or integration is sufficient. List each excluded category or path,
-the reason, and any residual coverage gap. Unavailable content is a coverage
-gap to assess, not an automatic exclusion from scope.
+inputs or integration is sufficient. Unavailable content is a coverage gap
+to assess, not an automatic exclusion from scope.
 
 Use static inspection only. Do not execute tests, builds, or repository
 scripts; the coordinator runs checks after the review. You may use read-only
@@ -75,10 +74,11 @@ Report concrete, actionable findings with file/line references, triggering
 scenarios, and impact. Do not request cosmetic changes or speculative
 refactoring. If you find no actionable issues, say so explicitly.
 
-State what you reviewed and anything you could not inspect. A material
-coverage gap is an unreviewed component or behavior that could materially
-affect correctness or security. Explain the potential impact of each gap
-so the coordinator can assess whether it prevents a clean pass.
+State what you reviewed. List each excluded or unavailable category or path,
+the reason, and any residual coverage gap with its potential impact. A
+material coverage gap is an unreviewed component or behavior that could
+materially affect correctness or security; the coordinator assesses whether
+it prevents a clean pass.
 ```
 
 ## Check execution rules
@@ -89,7 +89,7 @@ For every check command, compare repository status and content before and after,
 
 Before committing, two independent limits apply across the entire pass, including targeted checks:
 
-- **Failure repairs: at most two attempts.** After a failed check run, repair a verified repository issue supported by evidence or stop. Each attempt starts with repair edits and ends with a full suite; do not run targeted checks between them. The initial failed run consumes no attempt. Stop if checks still fail after the second attempt.
+- **Failure repairs: at most two attempts.** After a failed check run, repair a verified repository issue supported by evidence or stop. During each repair attempt, proceed from repair edits directly to a full-suite run. The initial failed run consumes no attempt. Stop if checks still fail after the second attempt.
 - **Changes made by checks: one stabilization rerun.** After the first check run that makes justified content changes, the next run must be a full suite against the resulting content. Multiple commands may change content within that initial run. Stop if any command in the stabilization rerun or a later run changes content again.
 
 If a check run both fails and changes files, inspect the changes, repair within the remaining allowance, then run the full suite. This counts as both repair verification and stabilization; stabilization alone consumes no repair attempt. Neither limit resets between phases or repairs. Post-commit checks follow **Verify commit**, which permits no repairs.

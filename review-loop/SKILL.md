@@ -31,12 +31,17 @@ Throughout the run, do not push, rewrite history, bypass branch protection, modi
 
 - Follow AGENTS.md, CLAUDE.md, and the repository's instructions.
 - Record the currently checked-out branch as the starting branch and record its configured GitHub upstream (remote, remote URL, and destination branch). Any branch, including main, is supported.
-- Stop if HEAD is detached, the working tree is not clean, or the branch has no configured upstream. Both GitHub.com and GitHub Enterprise are supported. Establish that the configured remote identifies a GitHub repository: use its resolved URL for GitHub.com, or existing project documentation or authenticated host metadata for an Enterprise host. Resolve SSH aliases or URL rewrites when present; a suggestive hostname alone is insufficient evidence for Enterprise. Stop if the host or repository identity cannot be established.
-- Verify that the configured destination branch exists on that remote using a live remote query or fetch. Refresh its remote-tracking reference using the existing configuration, confirm that it matches the live destination branch, and verify that the starting branch resolves to exactly the same commit. Stop if the branch is missing, remote access fails, or the commits differ; a cached remote-tracking reference alone is insufficient. For later upstream refreshes, repeat the live remote and remote-tracking verification, but compare the upstream with the fixed expected upstream commit under **Invariants during the run**; local HEAD may then be ahead because of this loop’s verified fix commits.
+- Stop if HEAD is detached, the working tree is not clean, or the branch has no configured upstream.
+- Establish that the configured remote identifies a GitHub repository. Both GitHub.com and GitHub Enterprise are supported. Use the resolved URL for GitHub.com, or existing project documentation or authenticated host metadata for an Enterprise host. Resolve SSH aliases or URL rewrites when present; a suggestive hostname alone is insufficient evidence for Enterprise. Stop if the host or repository identity cannot be established.
+- Verify that the configured destination branch exists on that remote using a live remote query or fetch. Refresh its remote-tracking reference using the existing configuration and confirm that it matches the live destination branch. A cached remote-tracking reference alone is insufficient.
+- Verify that the starting branch resolves to exactly the same commit as the live destination branch. Stop if the branch is missing, remote access fails, or the commits differ.
+- For later upstream refreshes, repeat the live remote and remote-tracking verification. Compare the upstream with the fixed expected upstream commit under **Invariants during the run**; local HEAD may then be ahead because of this loop’s verified fix commits.
 - Record the starting commit as both the expected local HEAD and the expected upstream commit.
 - The user manages branches: never create or switch branches, discard work, or change upstream configuration to make the preconditions pass.
-- Identify the required test, lint, type-check, and build commands from applicable project requirements. If none are specified, select relevant available checks and state their scope; do not invent mandatory commands. Run the selected checks under the same pass/fail rules as required checks. If no checks are required and no relevant runnable checks exist, record that fact; the loop may succeed based on reviews alone, with this limitation disclosed in the final report. A required check that cannot run is a blocker, not an absence of checks.
-- Track the number of review passes, the consecutive clean-review count, and the commit reviewed in each pass. Start both counters at zero. Keep coordinator findings, fix explanations, and review logs out of reviewer prompts and out of the committed codebase.
+- Identify the required test, lint, type-check, and build commands from applicable project requirements. If none are specified, select relevant available checks and state their scope; do not invent mandatory commands. Run the selected checks under the same pass/fail rules as required checks.
+- If no checks are required and no relevant runnable checks exist, record that fact; the loop may succeed based on reviews alone, with this limitation disclosed in the final report. A required check that cannot run is a blocker, not an absence of checks.
+- Track the number of review passes, the consecutive clean-review count, and the commit reviewed in each pass. Start both counters at zero.
+- Keep coordinator findings, fix explanations, and review logs out of reviewer prompts and out of the committed codebase.
 
 ### Invariants during the run
 
@@ -92,7 +97,7 @@ Follow these phases in order unless a phase explicitly directs otherwise.
 
 ### Launch reviewer
 
-Increment the pass count and record the current commit. Launch a NEW, read-only reviewer with verified fresh conversation context using only the completed Reviewer prompt above. Do not pass the entire skill or its coordinator, editing, or commit instructions to the reviewer. Do not provide prior findings, fix explanations, review logs, or conversation history.
+Increment the pass count, record the current commit, and initialize this pass's non-clean flag to false. Once marked non-clean, the pass remains non-clean even if later changes restore the original content. Launch a NEW, read-only reviewer with verified fresh conversation context using only the completed Reviewer prompt above. Do not pass the entire skill or its coordinator, editing, or commit instructions to the reviewer. Do not provide prior findings, fix explanations, review logs, or conversation history.
 
 ### Assess review
 
@@ -110,14 +115,16 @@ Make routine implementation decisions using the user's instructions and reposito
 
 Run all required or selected checks, including on passes with no fixes. If preparation established the no-checks exception, continue with that recorded limitation. A required or selected check that cannot run is a blocker.
 
-For every check run, compare repository status and content before and after execution, regardless of exit status. Inspect every change to tracked files and every new non-ignored file; retain it only when justified by the intended fix. Stop as blocked on unrelated or unexplained changes and preserve them for the user.
+A **check execution** is one check command. A **suite run** executes all required or selected checks against the current content. A targeted execution during **Validate and fix findings** is a partial suite run: it cannot establish that the full suite passes and is subject to the same limits below.
+
+For every check execution, compare repository status and content before and after execution, regardless of exit status. Inspect every change to tracked files and every new non-ignored file; retain it only when justified by the intended fix. Stop as blocked on unrelated or unexplained changes and preserve them for the user.
 
 Two independent limits apply across the entire pass, including checks run during **Validate and fix findings**:
 
-- **Failure repairs: at most two attempts.** If checks fail because of a verified repository issue, a repair attempt consists of changes addressing an identified failure cause followed by a rerun of all required or selected checks. The initial failed run does not itself consume an attempt. Stop if no evidence-backed repair is available or checks still fail after the second attempt.
-- **Changes made by checks: one stabilization rerun.** The first run that makes justified content changes marks the pass non-clean and requires a rerun of all required or selected checks against the resulting content. If that rerun or any later check run in this pass changes content again, stop as blocked. Repairs or transitions between phases do not reset this allowance.
+- **Failure repairs: at most two attempts.** If checks fail because of a verified repository issue, a repair attempt consists of changes addressing an identified failure cause followed by a full suite run. The initial failed suite run does not itself consume an attempt. Stop if no evidence-backed repair is available or checks still fail after the second attempt.
+- **Changes made by checks: one stabilization rerun.** The first suite run that makes justified content changes marks the pass non-clean and requires a full suite rerun against the resulting content. Multiple check commands may make justified changes within that initial suite run; they collectively use one allowance. If any check execution in the stabilization rerun or any later suite run in this pass changes content again, stop as blocked. Repairs or transitions between phases do not reset this allowance.
 
-If a run both fails and changes files, apply both rules: inspect its changes, make an evidence-backed repair if an attempt remains, then run the full check suite. That rerun counts as both the repair attempt's verification and the stabilization rerun. A stabilization rerun without a failure repair consumes no repair attempt. Stop as soon as either limit requires it, even if the other has capacity left. Do not start another review pass to reset either limit. Post-commit checks follow **Verify commit**, which permits no repairs.
+If a suite run both fails and changes files, apply both rules: inspect its changes, make an evidence-backed repair if an attempt remains, then run the full check suite. That rerun counts as both the repair attempt's verification and the stabilization rerun. A stabilization rerun without a failure repair consumes no repair attempt. Begin a new suite run after any coordinator repair; do not extend the previous run to avoid a limit. Stop as soon as either limit requires it, even if the other has capacity left. Do not start another review pass to reset either limit. Post-commit checks follow **Verify commit**, which permits no repairs.
 
 ### Record checked content
 
@@ -126,6 +133,8 @@ Once checks pass without further content changes, or the no-checks exception app
 ### Commit fixes
 
 Recheck the branch, upstream configuration, and expected local HEAD; refresh and recheck the upstream, stopping on unexpected remote changes. If fixes exist, verify that the staged tree still matches the recorded tree ID, then commit to the starting branch under the launch authorization. Do not create empty commits. If there are no fixes, skip **Verify commit** and continue to **Retire reviewer**.
+
+If the commit command fails, including rejection by a commit hook before HEAD changes, stop as blocked. Inspect and report HEAD, the index, and working-tree changes so the user knows whether a commit was created and what remains uncommitted. Preserve that state; do not repair, retry the commit, or bypass hooks in this run.
 
 ### Verify commit
 
@@ -139,7 +148,7 @@ Close the finished reviewer using the supported lifecycle mechanism. If no close
 
 ### Count clean passes
 
-Increment the consecutive-clean count only if the review is complete, validation leaves no genuine findings, there are no material coverage gaps, all required or selected checks pass (or the recorded no-checks exception applies), and the reviewed commit and its content remain unchanged. Otherwise reset it to zero. A pass that produces fixes is never clean; its resulting commit needs a new review. Any change during or between passes to reviewed content, including tests, configuration, or scripts, resets the count.
+Increment the consecutive-clean count only if the pass's non-clean flag is false, the review is complete, validation leaves no genuine findings, there are no material coverage gaps, all required or selected checks pass (or the recorded no-checks exception applies), and the reviewed commit and its content remain unchanged. Otherwise reset it to zero. A pass that produces fixes is never clean; its resulting commit needs a new review. Any change during or between passes to reviewed content, including tests, configuration, or scripts, resets the count and marks the affected pass non-clean, even if the original content is later restored.
 
 Apply **Completion and limits** to decide whether to finish or return to **Launch reviewer**.
 
@@ -155,4 +164,13 @@ A blocked run ends the loop; it does not resume with its old counters or recorde
 
 ## Final report
 
-Report the starting branch and its recorded upstream, final commit, fixes, checks and their results, review coverage, pass count and consecutive clean passes, remaining limitations, and whether the goal completed or was blocked. Report Git values only when established; mark unavailable or unverified values explicitly and explain why, including when preparation stopped early. State that the loop did not push and list any known local commits awaiting a human push. When local HEAD and a refreshed upstream are both verified, report whether HEAD matches, is ahead, is behind, or has diverged from that upstream. If blocked, explain the blocker and any known local or unpushed changes. Do not claim that the repository is guaranteed bug-free.
+Include:
+
+- Outcome: completed or blocked, with the blocker if applicable.
+- Starting branch, recorded upstream, and final commit. Report Git values only when established; mark unavailable or unverified values explicitly and explain why, including when preparation stopped early.
+- Fixes, checks and their results, review coverage, and remaining limitations.
+- Total review passes and consecutive clean passes.
+- Confirmation that the loop did not push, known local commits awaiting a human push, and any uncommitted changes.
+- Whether HEAD matches, is ahead, is behind, or has diverged from the upstream, when local HEAD and a refreshed upstream are both verified.
+
+Do not claim that the repository is guaranteed bug-free.

@@ -17,7 +17,7 @@ Use the host's built-in subagents. Verify that each reviewer can start without i
 
 - Work only with the existing local repository. Do not access GitHub or other remote services, query or modify remotes, or fetch, pull, or push. The human handles all remote synchronization. This boundary also applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
 - Do not amend commits, rewrite history, create or switch branches, discard work, include unrelated work, or weaken tests/checks.
-- Keep review transcripts, finding inventories, and run logs out of the committed codebase.
+- Keep review transcripts, finding inventories, and run logs in the conversation or, if saved to files, outside the repository working tree or in an already-ignored location. Never commit them.
 - A stop condition ends the run as **blocked**. Follow **Completion and limits** for cleanup and reporting; do not start another pass to bypass a stop.
 
 ## Preparation
@@ -80,12 +80,27 @@ A **full suite** runs all checks identified during preparation. A **check run** 
 
 For every check command, compare repository status and content before and after, regardless of exit status. Inspect all content changes; stop on changes not justified by the intended fix.
 
-Two independent limits apply to pre-commit checks within each pass:
+The following limits apply independently to pre-commit checks within each pass. Post-commit checks follow **Verify commit** instead.
 
-- **Failure repairs: at most two attempts.** After a failed check run, further diagnosis is limited to existing output and static inspection. Repair a verified repository issue and run the full suite as the next check run, or stop. That repair and full suite consume one attempt; the initial failed run consumes none. Stop if checks fail with no attempts remaining.
-- **Changes made by checks: one stabilization rerun.** After the first check run that makes justified content changes, the next run must be a full suite. Multiple commands may change content within that first run. Stop if any check command changes content in the stabilization rerun or a later run.
+### Failure repairs: at most two attempts
 
-If a run both fails and changes files, repair the failure before the stabilization rerun; that rerun also verifies the repair and counts toward both limits. Stabilization alone consumes no repair attempt. Post-commit checks follow **Verify commit** instead of these retry limits.
+The initial failed check run consumes no repair attempt. After any failed check run:
+
+1. Stop if no repair attempts remain.
+2. Diagnose using only existing output and static inspection.
+3. Repair a verified repository issue, or stop.
+4. Run the full suite as the next check run. The repair and full suite together consume one attempt.
+
+### Changes made by checks: one stabilization rerun
+
+Multiple commands may make justified content changes during the first such check run. After that run:
+
+1. Run a full suite next; this is the stabilization rerun.
+2. Stop if any check command changes content during the stabilization rerun or any later run.
+
+### When both limits apply
+
+If a check run both fails and makes justified content changes, repair the failure before the stabilization rerun. That rerun verifies the repair and counts toward both limits. Stabilization alone consumes no repair attempt.
 
 ## For each review pass
 

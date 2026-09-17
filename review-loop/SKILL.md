@@ -78,18 +78,18 @@ A **full suite** runs all checks identified during preparation. A **check run** 
 
 For every check command, compare repository status and content before and after, regardless of exit status. Stop on any content change not justified by the intended fix.
 
-The pre-commit rules below allow at most **two failure-repair attempts** and **one stabilization rerun** per pass. Post-commit checks follow [Verify commit](#verify-commit) instead.
+Before committing, allow at most **two failure-repair attempts** and **one stabilization rerun** per pass. A repair and its following full suite consume one repair attempt, whether that suite passes or fails. The full suite following the first check-induced content change in the current pass is the stabilization rerun; it also counts toward a repair attempt if a repair was required. Post-commit checks follow [Verify commit](#verify-commit) instead.
 
 Stop immediately if any check command changes content during the stabilization rerun or any later run. Otherwise, apply this table after each check run:
 
-| Result | Justified content changes | Next action | Budget consumed |
-| --- | --- | --- | --- |
-| Passed | None | Continue to the next required step. | None |
-| Failed | None | Repair, then run a full suite. | One repair attempt |
-| Passed | First occurrence | Run a full suite. | The stabilization rerun |
-| Failed | First occurrence | Repair, then run a full suite. | One repair attempt and the stabilization rerun |
+| Result | Justified check-induced content changes | Next action |
+| --- | --- | --- |
+| Passed | None | Continue to the next required step. |
+| Failed | None | Repair, then run a full suite. |
+| Passed | First in this pass | Run a full suite as the stabilization rerun. |
+| Failed | First in this pass | Repair, then run a full suite as the stabilization rerun. |
 
-For either failed result, stop if no repair attempts remain. Diagnose using only existing output and static inspection, then repair a verified repository issue or stop. The repair and its following full suite together consume one attempt, whether the suite passes or fails.
+For either failed result, stop if no repair attempts remain. Diagnose using only existing output and static inspection, then repair a verified repository issue or stop.
 
 ## For each review pass
 
@@ -153,7 +153,9 @@ At the end of each pass, increment the consecutive-clean count if the pass is cl
 
 On every exit, follow [Retire reviewer](#retire-reviewer) for any remaining reviewer, preserve local commits and uncommitted changes, and produce the [Final report](#final-report).
 
-An instruction to **stop** ends the run as **blocked**; do not start further passes or resume that run. Before a new run, the user must resolve any underlying blocker and ensure the working tree is clean. If the run stopped solely at the ten-pass limit, no repository changes are required and the user may immediately invoke a new run. Every new run begins at [Launch requirements](#launch-requirements) with fresh counters.
+An instruction to **stop** ends the run as **blocked**; do not start further passes or resume that run.
+
+Before a new run, the user must resolve any underlying blocker and ensure the working tree is clean. If the run stopped solely at the ten-pass limit, no repository changes are required and the user may immediately invoke a new run. Every new run begins at [Launch requirements](#launch-requirements) with fresh counters.
 
 ## Final report
 

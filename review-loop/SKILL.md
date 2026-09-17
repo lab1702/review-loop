@@ -5,26 +5,26 @@ description: Run independent whole-repository reviews with verified fixes, check
 
 # Review Loop
 
-Review the whole repository with independent reviewers, fix verified issues, run checks, and commit fixes locally. Success requires two consecutive clean passes on the same unchanged commit within 10 attempted passes.
+Success requires two consecutive clean review passes on the same unchanged commit within 10 attempted passes.
 
 ## Launch requirements
 
-Require explicit authorization for **ordinary commits**: new local commits on the starting branch. For example: "I authorize ordinary commits to the current branch." Skill invocation alone is insufficient. If authorization is absent or ambiguous, request it and wait; once given, it covers the entire run. Required platform approvals still apply.
+Require explicit authorization for **ordinary commits**: new local commits on the starting branch. For example: "I authorize ordinary commits to the current branch." Skill invocation alone is insufficient. If authorization is absent or ambiguous, request it and wait; once given, it covers the entire run.
 
-Use the host's built-in subagents. Verify support for reviewers that inherit no coordinator or prior reviewer conversation, such as documented `collaboration.spawn_agent` support for `fork_turns: "none"`. A separate task or an instruction to "ignore previous context" does not establish this isolation; a separate filesystem is unnecessary. Stop if isolation cannot be verified. Do not install or invoke a separate Codex or Claude Code CLI.
+Use the host's built-in subagents and verify that reviewers can start without coordinator or prior reviewer conversation, such as documented `collaboration.spawn_agent` support for `fork_turns: "none"`. Stop if this isolation cannot be verified. A separate task or an instruction to "ignore previous context" is insufficient; a separate filesystem is unnecessary. Do not install or invoke a separate Codex or Claude Code CLI.
 
 ## Run boundaries
 
 - Work only with the existing local repository. Do not access remote services, query or modify remotes, or fetch, pull, or push. This boundary applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
 - Do not amend commits, rewrite history, create or switch branches, discard work, include unrelated work, or weaken tests/checks.
 - Keep review transcripts, finding inventories, and run logs in the conversation, outside the working tree, or in an already-ignored location. Never commit them.
-- A stop condition ends the run as **blocked**. Follow **Completion and limits** for cleanup and reporting; do not start another pass to bypass a stop.
+- On any stop, follow [Completion and limits](#completion-and-limits).
 
 ## Preparation
 
 ### Starting-state requirements
 
-- Follow AGENTS.md, CLAUDE.md, and the repository's instructions.
+- Follow applicable user and repository instructions, including AGENTS.md and CLAUDE.md.
 - Require an existing local Git working tree with a valid HEAD on a checked-out branch and a **clean working tree**: no staged changes, unstaged changes, or non-ignored untracked files. Stop if any requirement is unmet.
 - Record the checked-out branch as the **starting branch** and its current commit as the **expected local HEAD**. Any branch, including main, is supported; no remote or upstream is required.
 - Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope. Record the **no-checks exception** only when no checks are required and no relevant checks exist; it waives check execution only. Stop if a required or selected check cannot run.
@@ -32,12 +32,12 @@ Use the host's built-in subagents. Verify support for reviewers that inherit no 
 
 ### Invariants during the run
 
-- Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Only **Verify commit** may advance that value.
+- Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Advance the expected value only after [Verify commit](#verify-commit) succeeds.
 - On any mismatch or unrelated working-tree change, stop. Do not adopt outside changes to continue.
 
 ## Reviewer prompt
 
-Give each reviewer only the prompt below with its placeholders filled in. Summarize user requirements without relying on conversation history; use "None specified" if there are none. Do not attach prior findings, fix explanations, or this skill.
+Give each reviewer only the prompt below with its placeholders filled in. Make the user requirements self-contained; use "None specified" if there are none. Do not attach prior findings, fix explanations, or this skill.
 
 ```text
 Repository: <repository location>
@@ -74,59 +74,59 @@ materially affect correctness or security.
 
 ## Check execution rules
 
-A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check. Targeted checks may diagnose or verify a fix unless the rules below require a full suite next.
+A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check. Targeted checks may diagnose or verify a fix unless a full suite is required next.
 
 **Content changes** are changes to tracked or non-ignored untracked files, including additions and deletions.
 
 For every check command, compare repository status and content before and after, regardless of exit status. Stop on any content change not justified by the intended fix.
 
-Each pass allows at most two pre-commit failure-repair attempts and one stabilization rerun. Post-commit checks follow **Verify commit** instead.
+The rules below apply before committing. Each pass allows at most **two failure-repair attempts** and **one stabilization rerun**. Post-commit checks follow [Verify commit](#verify-commit) instead.
 
 ### Failed checks
 
-The initial failed check run consumes no repair attempt. After any failed check run:
+After any failed check run:
 
 1. Stop if no repair attempts remain.
 2. Diagnose using only existing output and static inspection.
 3. Repair a verified repository issue, or stop.
-4. Run the full suite as the next check run. The repair and full suite together consume one attempt.
+4. Run a full suite next. The repair and this suite together consume one attempt, whether the suite passes or fails.
 
 ### Changes made by checks
 
-After the first check run that makes justified content changes (possibly through multiple commands):
+After the first check run that makes justified content changes:
 
 1. Run a full suite next; this is the stabilization rerun.
 2. Stop if any check command changes content during the stabilization rerun or any later run.
 
-If the first run that changes content also fails, repair the failure under **Failed checks** before the stabilization rerun. The rerun counts toward both limits; stabilization alone consumes no repair attempt.
+If that run also fails, follow [Failed checks](#failed-checks) first: repair the failure, then use the next full suite as both the repair check and stabilization rerun. This consumes one repair attempt and the stabilization rerun. Stabilization without a failure consumes no repair attempt.
 
 ## For each review pass
 
-A pass becomes permanently **non-clean** if reviewer launch or review acceptance fails, any finding is verified, or content changes (even if later reverted). Reset the consecutive-clean count to zero immediately. Otherwise, the pass is **clean** once **Check and stage content** succeeds. Rejected findings alone do not disqualify it.
+A pass becomes permanently **non-clean** if reviewer launch or acceptance fails, a finding is verified, or content changes (even if later reverted). Reset the consecutive-clean count to zero immediately. Otherwise, the pass is **clean** once [Check and stage content](#check-and-stage-content) succeeds. Rejected findings alone do not disqualify it.
 
 ### Launch reviewer
 
-Increment the pass count and record the current commit. Reset the failure-repair and stabilization-rerun counters to zero only at this step. Launch a new reviewer using the verified isolation mechanism and **Reviewer prompt**. Failed launches and incomplete reviews still consume a pass.
+Increment the pass count and record the current commit, even if launch or review later fails. Reset the failure-repair and stabilization-rerun counters to zero only here. Launch a new reviewer using the verified isolation mechanism and [Reviewer prompt](#reviewer-prompt).
 
 ### Assess review
 
-Wait for the reviewer to finish before editing. Accept only a completed review with no unresolved execution errors or material coverage gaps, as defined in **Reviewer prompt**.
+Wait for the reviewer to finish before editing. Accept only a completed review with no unresolved execution errors or material coverage gaps, as defined in [Reviewer prompt](#reviewer-prompt).
 
-If launch or review acceptance fails, skip to **Retire reviewer** only if available capabilities can address the problem in a later pass; otherwise stop. Do not edit, run checks, or commit in the failed pass.
+If launch or review acceptance fails, do not edit, run checks, or commit in that pass. Skip to [Retire reviewer](#retire-reviewer) if available capabilities can address the problem in a later pass; otherwise stop.
 
 ### Validate and fix findings
 
 Validate each finding against the reviewed commit. Record the reason for each rejection. Fix verified findings and add regression tests where appropriate.
 
-Resolve all verified findings before proceeding. Follow user and repository guidance; stop if required information or a consequential choice cannot be inferred, or required authorization is missing. Finding repairs have no separate attempt limit, but stop if no evidence-backed next step remains, attempts repeat without progress, or a finding cannot be resolved within scope. Check failures follow **Check execution rules**.
+Resolve all verified findings before proceeding. Stop if required information or a consequential choice cannot be inferred, or required authorization is missing. Finding repairs have no separate attempt limit, but stop if no evidence-backed next step remains, attempts repeat without progress, or a finding cannot be resolved within scope. Check failures follow [Check execution rules](#check-execution-rules).
 
 ### Check and stage content
 
 Unless the no-checks exception applies, require a passing full suite that made no content changes, even on passes with no fixes. Reuse results only within the current pass while content remains unchanged.
 
-If no content changes remain relative to the reviewed commit, skip to **Retire reviewer** without creating an empty commit.
+If no content changes remain relative to the reviewed commit, skip to [Retire reviewer](#retire-reviewer) without creating an empty commit.
 
-Otherwise, stage only verified fixes. Verify that staged content matches the checked content, with no unstaged tracked changes or unexplained non-ignored files. Record the staged Git tree ID using `git write-tree` and associate it with the check results or exception. Keep this content unchanged until committing.
+Otherwise, stage only verified fixes. Verify that staged content matches the content that passed checks (or qualifies for the no-checks exception), with no unstaged tracked changes or unexplained non-ignored files. Record the staged Git tree ID using `git write-tree` and associate it with the check results or exception. Keep this content unchanged until committing.
 
 ### Commit fixes
 
@@ -154,9 +154,9 @@ At the end of each pass, increment the consecutive-clean count if the pass is cl
 - When the consecutive-clean count reaches two, verify that both passes reviewed the same unchanged commit and the working tree is clean. If verification succeeds, finish as **completed**; otherwise stop.
 - If success has not been achieved by the end of pass 10, stop. Otherwise start the next pass.
 
-On every exit, follow **Retire reviewer** for any remaining reviewer, preserve local commits and uncommitted changes, and produce the **Final report**.
+On every exit, follow [Retire reviewer](#retire-reviewer) for any remaining reviewer, preserve local commits and uncommitted changes, and produce the [Final report](#final-report).
 
-A blocked run cannot resume. The user must resolve the blocker and restore a clean working tree before starting a new run from **Launch requirements**.
+Any stop ends the run as **blocked**, with no further passes or resumption. The user must resolve the blocker and restore a clean working tree before starting a new run from [Launch requirements](#launch-requirements).
 
 ## Final report
 

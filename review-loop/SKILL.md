@@ -80,23 +80,16 @@ For every check command, compare repository status and content before and after,
 
 The pre-commit rules below allow at most **two failure-repair attempts** and **one stabilization rerun** per pass. Post-commit checks follow [Verify commit](#verify-commit) instead.
 
-### Failed checks
+Stop immediately if any check command changes content during the stabilization rerun or any later run. Otherwise, apply this table after each check run:
 
-After any failed check run:
+| Result | Justified content changes | Next action | Budget consumed |
+| --- | --- | --- | --- |
+| Passed | None | Continue to the next required step. | None |
+| Failed | None | Repair, then run a full suite. | One repair attempt |
+| Passed | First occurrence | Run a full suite. | The stabilization rerun |
+| Failed | First occurrence | Repair, then run a full suite. | One repair attempt and the stabilization rerun |
 
-1. Stop if no repair attempts remain.
-2. Diagnose using only existing output and static inspection.
-3. Repair a verified repository issue, or stop.
-4. Run a full suite next. The repair and this suite together consume one attempt, whether the suite passes or fails.
-
-### Changes made by checks
-
-After the first check run that makes justified content changes:
-
-1. Run a full suite next; this is the stabilization rerun.
-2. Stop if any check command changes content during the stabilization rerun or any later run.
-
-If the first content-changing check run also fails, follow [Failed checks](#failed-checks); the next full suite consumes both one repair attempt and the stabilization rerun. Otherwise, the stabilization rerun consumes no repair attempt.
+For either failed result, stop if no repair attempts remain. Diagnose using only existing output and static inspection, then repair a verified repository issue or stop. The repair and its following full suite together consume one attempt, whether the suite passes or fails.
 
 ## For each review pass
 
@@ -156,15 +149,15 @@ Interrupt any still-running reviewer and close it if supported. Never reuse or r
 At the end of each pass, increment the consecutive-clean count if the pass is clean, then evaluate these conditions in order:
 
 - When the consecutive-clean count reaches two, verify that both passes reviewed the same unchanged commit and the working tree is clean. If verification succeeds, finish as **completed**; otherwise stop.
-- If success has not been achieved by the end of pass 10, stop. Otherwise start the next pass.
+- If success has not been achieved by the end of pass 10, stop with the reason **review-pass limit reached**. Otherwise start the next pass.
 
 On every exit, follow [Retire reviewer](#retire-reviewer) for any remaining reviewer, preserve local commits and uncommitted changes, and produce the [Final report](#final-report).
 
-An instruction to **stop** ends the run as **blocked**; do not start further passes or resume that run. The user must resolve the blocker and restore a clean working tree before starting a new run from [Launch requirements](#launch-requirements).
+An instruction to **stop** ends the run as **blocked**; do not start further passes or resume that run. Before a new run, the user must resolve any underlying blocker and ensure the working tree is clean. If the run stopped solely at the ten-pass limit, no repository changes are required and the user may immediately invoke a new run. Every new run begins at [Launch requirements](#launch-requirements) with fresh counters.
 
 ## Final report
 
-- Outcome: completed or blocked. If blocked, explain the blocker and what must be resolved before a new run.
+- Outcome: completed or blocked. If blocked, explain the stop reason and any prerequisites for a new run.
 - Starting branch and final commit. Mark unavailable or unverified Git values explicitly and explain why.
 - Fixes, checks and their results (or the no-checks exception), review coverage, and remaining limitations.
 - Total review passes and consecutive clean passes.

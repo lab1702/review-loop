@@ -26,7 +26,7 @@ Start in an existing local Git repository and check out the branch you want revi
 
 The loop operates only on the local repository and does not access GitHub or other remote services. No remote or upstream is required. You handle all fetching, pulling, and pushing. Reviewers, checks, and hooks must also operate locally; a required operation that needs remote access blocks the run.
 
-If a run is blocked, its local commits and uncommitted fixes are preserved. Resolve the blocker and restore a clean local working tree before launching a new run with commit authorization. A new run starts its review counters at zero.
+If a run is blocked, its local commits and uncommitted fixes are preserved. Resolve any underlying blocker and ensure the local working tree is clean before launching a new run with commit authorization. If the run stopped solely at the ten-pass limit, no repository changes are required; you may launch a new run immediately. A new run starts its review counters at zero.
 
 In the Codex chat window:
 

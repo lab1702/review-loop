@@ -17,7 +17,7 @@ Use the host's built-in subagents. Verify that each reviewer can start without i
 
 - Work only with the existing local repository. Do not access GitHub or other remote services, query or modify remotes, or fetch, pull, or push. The human handles all remote synchronization. This boundary also applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
 - Do not amend commits, rewrite history, create or switch branches, discard work, include unrelated work, or weaken tests/checks.
-- Keep coordinator findings, fix explanations, and review logs out of the committed codebase.
+- Keep review transcripts, finding inventories, and run logs out of the committed codebase.
 - A stop condition ends the run as **blocked**. Follow **Completion and limits** for cleanup and reporting; do not start another pass to bypass a stop.
 
 ## Preparation
@@ -82,7 +82,7 @@ For every check command, compare repository status and content before and after,
 
 Two independent limits apply to pre-commit checks within each pass:
 
-- **Failure repairs: at most two attempts.** After a failed check run, repair a verified repository issue and immediately run the full suite, or stop. That repair and full suite consume one attempt; the initial failed run consumes none. Stop if checks fail with no attempts remaining.
+- **Failure repairs: at most two attempts.** After a failed check run, further diagnosis is limited to existing output and static inspection. Repair a verified repository issue and run the full suite as the next check run, or stop. That repair and full suite consume one attempt; the initial failed run consumes none. Stop if checks fail with no attempts remaining.
 - **Changes made by checks: one stabilization rerun.** After the first check run that makes justified content changes, the next run must be a full suite. Multiple commands may change content within that first run. Stop if any check command changes content in the stabilization rerun or a later run.
 
 If a run both fails and changes files, repair the failure before the stabilization rerun; that rerun also verifies the repair and counts toward both limits. Stabilization alone consumes no repair attempt. Post-commit checks follow **Verify commit** instead of these retry limits.

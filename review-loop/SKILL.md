@@ -23,7 +23,7 @@ Use the host's built-in subagents with verified support for starting without coo
 
 **Content changes** are changes to tracked or non-ignored untracked files, including additions and deletions.
 
-Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD recorded during preparation. Stop on any mismatch or any working-tree change that is unexplained or made outside this run.
+Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the current expected local HEAD (see [Preparation](#preparation) and [Verify commit](#verify-commit)). Stop on any mismatch or any working-tree change that is unexplained or made outside this run.
 
 ## Preparation
 
@@ -130,7 +130,7 @@ Satisfy [Check execution rules](#check-execution-rules) before proceeding.
 
 If no content changes remain relative to the reviewed commit, skip to [Retire reviewer](#retire-reviewer).
 
-Otherwise, stage only verified fixes. Require no unstaged tracked changes or unexplained non-ignored files. Verify that staged content matches what passed checks, unless the recorded no-checks exception applies. Record the staged tree ID (`git write-tree`) with that evidence and keep the content unchanged until committing.
+Otherwise, stage all and only verified fixes. Require no unstaged tracked changes or non-ignored untracked files. Verify that staged content matches what passed checks, unless the recorded no-checks exception applies. Record the staged tree ID (`git write-tree`) with that evidence and keep the content unchanged until committing.
 
 ### Commit fixes
 

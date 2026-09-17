@@ -32,8 +32,9 @@ Use the host's built-in subagents and verify that reviewers can start without co
 
 ### Invariants during the run
 
-- Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Advance the expected value only after [Verify commit](#verify-commit) succeeds.
-- On any mismatch or unrelated working-tree change, stop. Do not adopt outside changes to continue.
+**Content changes** are changes to tracked or non-ignored untracked files, including additions and deletions.
+
+Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Advance the expected value only after [Verify commit](#verify-commit) succeeds. Stop on any mismatch or unrelated working-tree change; do not adopt outside changes to continue.
 
 ## Reviewer prompt
 
@@ -74,9 +75,7 @@ materially affect correctness or security.
 
 ## Check execution rules
 
-A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check. Targeted checks may diagnose or verify a fix unless a full suite is required next.
-
-**Content changes** are changes to tracked or non-ignored untracked files, including additions and deletions.
+A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check. Use targeted checks to diagnose or verify a fix only when a full suite is not required next.
 
 For every check command, compare repository status and content before and after, regardless of exit status. Stop on any content change not justified by the intended fix.
 
@@ -98,11 +97,11 @@ After the first check run that makes justified content changes:
 1. Run a full suite next; this is the stabilization rerun.
 2. Stop if any check command changes content during the stabilization rerun or any later run.
 
-If that run also fails, follow [Failed checks](#failed-checks) first: repair the failure, then use the next full suite as both the repair check and stabilization rerun. This consumes one repair attempt and the stabilization rerun. Stabilization without a failure consumes no repair attempt.
+If the first content-changing check run also fails, follow [Failed checks](#failed-checks) before the stabilization rerun. The next full suite serves both purposes, consuming one repair attempt and the stabilization rerun. A stabilization rerun without a preceding failure consumes no repair attempt.
 
 ## For each review pass
 
-A pass becomes permanently **non-clean** if reviewer launch or acceptance fails, a finding is verified, or content changes (even if later reverted). Reset the consecutive-clean count to zero immediately. Otherwise, the pass is **clean** once [Check and stage content](#check-and-stage-content) succeeds. Rejected findings alone do not disqualify it.
+A pass becomes permanently **non-clean** if reviewer launch or acceptance fails, any finding is verified (including during checks), or content changes (even if later reverted). Reset the consecutive-clean count to zero immediately. Otherwise, the pass is **clean** once [Check and stage content](#check-and-stage-content) succeeds. Rejected findings alone do not disqualify it.
 
 ### Launch reviewer
 
@@ -118,7 +117,13 @@ If launch or review acceptance fails, do not edit, run checks, or commit in that
 
 Validate each finding against the reviewed commit. Record the reason for each rejection. Fix verified findings and add regression tests where appropriate.
 
-Resolve all verified findings before proceeding. Stop if required information or a consequential choice cannot be inferred, or required authorization is missing. Finding repairs have no separate attempt limit, but stop if no evidence-backed next step remains, attempts repeat without progress, or a finding cannot be resolved within scope. Check failures follow [Check execution rules](#check-execution-rules).
+Resolve all verified findings before proceeding. Finding repairs have no separate attempt limit, but stop if:
+
+- Required information or a consequential choice cannot be inferred, or required authorization is missing.
+- A finding cannot be resolved within scope.
+- No evidence-backed next step remains, or attempts repeat without progress.
+
+Check failures follow [Check execution rules](#check-execution-rules).
 
 ### Check and stage content
 

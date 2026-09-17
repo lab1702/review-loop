@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 REPO = Path(__file__).resolve().parents[1]
@@ -46,21 +47,24 @@ class InstallerCases:
     def assert_no_stages(self):
         self.assertFalse(list(self.destination.rglob('.review-loop-install.*')))
 
-    def run_installer(self, failure=None):
-        suffix = '.sh' if self.engine == 'bash' else '.ps1'
+    def prepare_installer(self, failure=None, pause=False, engine=None):
+        engine = engine or self.engine
+        suffix = '.sh' if engine == 'bash' else '.ps1'
         text = (REPO / ('install_review-loop' + suffix)).read_text()
         # Only redirect the destination lookup in a disposable script copy.
         # Never modify HOME or install into the real user's skill directories.
-        replacement = ('$REVIEW_LOOP_TEST_ROOT' if self.engine == 'bash'
+        replacement = ('$REVIEW_LOOP_TEST_ROOT' if engine == 'bash'
                        else '$env:REVIEW_LOOP_TEST_ROOT')
         self.assertIn('$HOME', text)
         text = text.replace('$HOME', replacement)
+        runner = Path(tempfile.mkdtemp(prefix='runner-', dir=self.root))
+        env = dict(self.env)
         if failure:
-            if self.engine == 'bash':
+            if engine == 'bash':
                 program = 'cp' if failure == 'copy' else 'mv'
                 original = shutil.which(program)
-                bin_dir = self.root / 'bin'
-                bin_dir.mkdir(exist_ok=True)
+                bin_dir = runner / 'bin'
+                bin_dir.mkdir()
                 shim = bin_dir / program
                 # Fail preparation or activation of the second destination.
                 shim.write_text(
@@ -71,7 +75,7 @@ class InstallerCases:
                        '  if [[ "$previous" == */new ]]; then exit 73; fi\n')
                     + 'fi\nexec "' + original + '" "$@"\n')
                 shim.chmod(0o755)
-                self.env['PATH'] = str(bin_dir) + os.pathsep + os.environ['PATH']
+                env['PATH'] = str(bin_dir) + os.pathsep + os.environ['PATH']
             else:
                 command = 'Copy-Item' if failure == 'copy' else 'Move-Item'
                 guard = ("$Destination.Contains('.claude')" if failure == 'copy' else
@@ -84,12 +88,111 @@ class InstallerCases:
     Microsoft.PowerShell.Management\\{command} @PSBoundParameters
 }}
 ''' + text
-        script = self.source / ('install' + suffix)
+        if pause:
+            # Pause after the first old installation has been moved aside,
+            # recreating the activation race without relying on scheduling.
+            env['REVIEW_LOOP_PAUSE_DIR'] = str(runner)
+            if engine == 'bash':
+                bin_dir = runner / 'bin'
+                bin_dir.mkdir()
+                shim = bin_dir / 'mv'
+                shim.write_text(
+                    '#!/usr/bin/env bash\n'
+                    'for arg in "$@"; do previous="$last"; last="$arg"; done\n'
+                    'if [[ "$previous" == */new && "$last" == */.agents/skills/review-loop ]]; then\n'
+                    '  touch "$REVIEW_LOOP_PAUSE_DIR/paused"\n'
+                    '  while [[ ! -e "$REVIEW_LOOP_PAUSE_DIR/resume" ]]; do sleep .01; done\n'
+                    'fi\nexec "' + shutil.which('mv') + '" "$@"\n')
+                shim.chmod(0o755)
+                env['PATH'] = str(bin_dir) + os.pathsep + os.environ['PATH']
+            else:
+                text = '''function Move-Item {
+    [CmdletBinding()]
+    param([string]$LiteralPath, [string]$Destination, [switch]$Force, [switch]$Recurse)
+    if ($Destination.Contains('.agents') -and [System.IO.Path]::GetFileName($LiteralPath) -eq 'new') {
+        [System.IO.File]::WriteAllText((Join-Path $env:REVIEW_LOOP_PAUSE_DIR 'paused'), '')
+        while (-not (Test-Path -LiteralPath (Join-Path $env:REVIEW_LOOP_PAUSE_DIR 'resume'))) {
+            Start-Sleep -Milliseconds 10
+        }
+    }
+    Microsoft.PowerShell.Management\\Move-Item @PSBoundParameters
+}
+''' + text
+        script = self.source / ('install-' + runner.name + suffix)
         script.write_text(text)
-        command = (['bash', str(script)] if self.engine == 'bash' else
+        command = (['bash', str(script)] if engine == 'bash' else
                    [PWSH, '-NoLogo', '-NoProfile', '-NonInteractive', '-File', str(script)])
-        return subprocess.run(command, cwd=self.root, env=self.env,
+        return command, env
+
+    def run_installer(self, failure=None):
+        command, env = self.prepare_installer(failure=failure)
+        return subprocess.run(command, cwd=self.root, env=env,
                               capture_output=True, text=True, timeout=30)
+
+    def test_existing_lock_preserves_installs_and_ownership(self):
+        self.seed_installs()
+        for target in self.targets:
+            with self.subTest(destination=target):
+                lock = target.parent / '.review-loop-install.lock'
+                lock.write_text('owned by another installer')
+                result = self.run_installer()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('installation lock', result.stderr.lower())
+                self.assertEqual(lock.read_text(), 'owned by another installer')
+                lock.unlink()
+                # Also verifies release of the first lock if the second failed.
+                self.assert_previous_installs()
+
+    def check_concurrent_install(self, competing_engine):
+        self.seed_installs()
+        version = self.source / 'review-loop/version.txt'
+        version.write_text('A')
+        command, env = self.prepare_installer(pause=True)
+        gate = Path(env['REVIEW_LOOP_PAUSE_DIR'])
+        process = subprocess.Popen(command, cwd=self.root, env=env,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 10
+            while not (gate / 'paused').exists() and process.poll() is None and time.monotonic() < deadline:
+                time.sleep(.01)
+            self.assertTrue((gate / 'paused').exists(), 'Installer did not reach the activation barrier')
+            version.write_text('B')
+            second_command, second_env = self.prepare_installer(engine=competing_engine)
+            second = subprocess.run(second_command, cwd=self.root, env=second_env,
+                                    capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(second.returncode, 0, second.stderr)
+            self.assertIn('installation lock', second.stderr.lower())
+            for target in self.targets:
+                self.assertTrue((target.parent / '.review-loop-install.lock').is_file())
+            (gate / 'resume').touch()
+            _, stderr = process.communicate(timeout=30)
+            self.assertEqual(process.returncode, 0, stderr)
+            for target in self.targets:
+                self.assertEqual((target / 'version.txt').read_text(), 'A')
+                self.assertFalse((target / 'new').exists())
+            self.assert_no_stages()
+            # The rejected installer can succeed after the first releases locks.
+            retry = subprocess.run(second_command, cwd=self.root, env=second_env,
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(retry.returncode, 0, retry.stderr)
+            for target in self.targets:
+                self.assertEqual((target / 'version.txt').read_text(), 'B')
+                self.assertFalse((target / 'new').exists())
+            self.assert_no_stages()
+        finally:
+            (gate / 'resume').touch()
+            try:
+                process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+
+    def test_concurrent_install(self):
+        self.check_concurrent_install(self.engine)
+
+    @unittest.skipUnless(shutil.which('bash') and PWSH, 'Requires both Bash and PowerShell')
+    def test_concurrent_other_shell_install(self):
+        self.check_concurrent_install('powershell' if self.engine == 'bash' else 'bash')
 
     def test_install_and_reinstall(self):
         result = self.run_installer()

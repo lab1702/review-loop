@@ -65,9 +65,25 @@ if (Test-PathOverlap $resolvedTargets[0] $resolvedTargets[1]) {
 }
 
 $stages = @()
+$locks = @()
 $installing = $false
 $completed = $false
 try {
+    # CreateNew is exclusive and shares the Bash installer's lock-file protocol.
+    # Hold both locks until all cleanup and rollback operations have finished.
+    foreach ($targetDir in $targets) {
+        $skillsDir = Split-Path -Parent $targetDir
+        New-Item -ItemType Directory -Path $skillsDir -Force -ErrorAction Stop | Out-Null
+        $lockPath = Join-Path $skillsDir '.review-loop-install.lock'
+        try {
+            $lockStream = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        } catch {
+            throw "Cannot acquire installation lock: $lockPath. Another installer may be running. $_"
+        }
+        $locks += $lockPath
+        $lockStream.Dispose()
+    }
+
     # Prepare both copies before replacing either installed skill.
     for ($i = 0; $i -lt $targets.Count; $i++) {
         $skillsDir = Split-Path -Parent $targets[$i]
@@ -112,6 +128,13 @@ try {
             Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction Stop
         } catch {
             Write-Warning "Cleanup or rollback failed; recovery files retained at ${stage}: $_"
+        }
+    }
+    foreach ($lockPath in $locks) {
+        try {
+            Remove-Item -LiteralPath $lockPath -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Could not remove installation lock: ${lockPath}: $_"
         }
     }
 }

@@ -18,6 +18,7 @@ Require host-provided subagents with documented support for starting without coo
 ## Run boundaries
 
 - Use only the existing local repository. Do not access remote services, query or modify remotes, or fetch, pull, or push. This applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
+- Set `GIT_NO_LAZY_FETCH=1` in the environment of every Git command and of checks and hooks that may invoke Git. Set it explicitly in each execution environment, including reviewers; do not assume shell or subagent environment changes persist. This prevents static reads in partial clones from fetching missing objects. Verify Git support locally with `git --no-lazy-fetch --version`; if unsupported or a required object is missing locally, stop and report the coverage gap without fetching.
 - Do not amend commits, rewrite history, create or switch branches, discard work from outside this run, include unrelated work, or weaken tests/checks. You may revise or revert your own uncommitted fix attempts during the run.
 - Keep review artifacts (transcripts, finding inventories, and run logs) in the conversation, outside the working tree, or in an already-ignored location. Never commit them.
 
@@ -58,6 +59,10 @@ inputs or integration is sufficient.
 
 Use only locally available files and Git objects. Do not access GitHub or
 other remote services, query or modify remotes, or fetch, pull, or push.
+Set GIT_NO_LAZY_FETCH=1 for every Git command, including in fresh shells,
+to prevent implicit fetches in partial clones. Verify Git support locally
+with git --no-lazy-fetch --version. If unsupported or required objects are missing, report
+the affected paths and coverage gap without fetching.
 Use only static, read-only inspection commands. Do not execute tests,
 builds, or repository scripts; the coordinator runs checks. Do not consult
 earlier review artifacts, modify files, switch or create branches, or create

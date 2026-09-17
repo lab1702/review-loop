@@ -4,6 +4,8 @@ Review the whole repository, fix verified issues, and run checks until two conse
 
 The install scripts copy the skill to both `~/.agents/skills/` (Codex) and `~/.claude/skills/` (Claude Code).
 
+Both installations require explicit invocation. Codex uses `policy.allow_implicit_invocation: false` in `agents/openai.yaml`; the installers add `disable-model-invocation: true` to the Claude Code copy's frontmatter. Use the installer for Claude Code so this flag is included.
+
 ## Installation
 
 ### Linux and macOS

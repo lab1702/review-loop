@@ -1,7 +1,6 @@
 ---
 name: review-loop
 description: Run repeated independent whole-repository reviews with verified fixes, required checks, and explicitly authorized local commits to the starting branch, leaving pushes to the human. Use only when explicitly invoked to run this review loop.
-disable-model-invocation: true
 ---
 
 # Review Loop
@@ -37,12 +36,13 @@ Do not push, rewrite history, bypass branch protection, modify remote configurat
 
 ## Reviewer prompt
 
-Use the following prompt for each reviewer, filling in the repository location, exact commit, and applicable project requirements:
+Use the following prompt for each reviewer, filling in the repository location, exact commit, applicable project requirements, and relevant user requirements or constraints. Summarize user requirements without including prior findings, fix explanations, or conversation history. Use "None specified" when there are no additional user requirements.
 
 ```text
 Repository: <repository location>
 Commit to review: <exact commit SHA>
 Applicable project requirements: <requirements or their locations>
+Applicable user requirements and constraints: <self-contained summary or None specified>
 
 Perform a read-only review of the WHOLE codebase at this exact commit,
 including committed source, tests, configuration, and scripts. Inspect
@@ -79,7 +79,7 @@ so the coordinator can assess whether it prevents a clean pass.
 4. Validate each finding against the reviewed commit. Record why any finding is rejected; a rejected finding alone does not prevent a clean pass. Fix genuine issues and add regression tests where appropriate. Do not weaken tests or checks. Make routine implementation decisions using the user's instructions and repository guidance. If a fix requires missing requirements, additional authorization, or a consequential choice that cannot be inferred from that guidance, stop as blocked and identify the input needed before making the decision. After attempting fixes and validation, stop as blocked if any verified finding remains unresolved.
 5. Check the resulting state, commit any fixes, and verify the commit in this order:
 
-   **Checks:** Run all required or selected checks, including on passes with no fixes. Fix failures caused by a verified repository issue and rerun the checks on the resulting state; stop as blocked if checks remain failing or unavailable. If preparation established the no-checks exception, proceed with that recorded limitation.
+   **Checks:** Run all required or selected checks, including on passes with no fixes. If checks fail because of a verified repository issue, allow at most two repair attempts in this pass. Each attempt must address an identified cause and be followed by a rerun of all required or selected checks. Stop as blocked if checks still fail after the second attempt, no evidence-backed repair is available, or a required or selected check cannot run. Do not start another review pass to reset this repair limit. If preparation established the no-checks exception, proceed with that recorded limitation.
 
    **Commit:** Once checks pass or the no-checks exception applies, verify that only intended changes are included, refresh and recheck the upstream, and stop on unexpected remote changes. If fixes exist, record the exact content being committed and its check results (or the no-checks exception), then commit the fixes to the starting branch under the launch authorization. Do not create empty commits for clean passes. If there are no fixes, proceed to step 6.
 
@@ -102,4 +102,4 @@ A blocked run ends the loop; it does not resume with its old counters or recorde
 
 ## Final report
 
-Report the starting branch and its recorded upstream, final commit, fixes, checks and their results, review coverage, pass count and consecutive clean passes, remaining limitations, and whether the goal completed or was blocked. State that the loop did not push, list any local commits awaiting a human push to the recorded upstream, and report whether local HEAD matches or is ahead of the verified GitHub upstream. If blocked, explain the blocker and any local or unpushed changes. Do not claim that the repository is guaranteed bug-free.
+Report the starting branch and its recorded upstream, final commit, fixes, checks and their results, review coverage, pass count and consecutive clean passes, remaining limitations, and whether the goal completed or was blocked. Report Git values only when established; mark unavailable or unverified values explicitly and explain why, including when preparation stopped early. State that the loop did not push and list any known local commits awaiting a human push. When local HEAD and a refreshed upstream are both verified, report whether HEAD matches, is ahead, is behind, or has diverged from that upstream. If blocked, explain the blocker and any known local or unpushed changes. Do not claim that the repository is guaranteed bug-free.

@@ -35,12 +35,40 @@ Do not push, rewrite history, bypass branch protection, change remotes, or inclu
 - Identify the required test, lint, type-check, and build commands from applicable project requirements. If none are specified, select relevant available checks and state their scope; do not invent mandatory commands. Run the selected checks under the same pass/fail rules as required checks. If no checks are required and no relevant runnable checks exist, record that fact; the loop may succeed based on reviews alone, with this limitation disclosed in the final report. A required check that cannot run is a blocker, not an absence of checks.
 - Track the number of review passes, the consecutive clean-review count, and the commit reviewed in each pass. Start both counters at zero. Keep coordinator findings, fix explanations, and review logs out of reviewer prompts and out of the committed codebase.
 
+## Reviewer prompt
+
+Use the following prompt for each reviewer, filling in the repository location, exact commit, and applicable project requirements:
+
+```text
+Repository: <repository location>
+Commit to review: <exact commit SHA>
+Applicable project requirements: <requirements or their locations>
+
+Perform a read-only review of the WHOLE codebase at this exact commit,
+including committed source, tests, configuration, and scripts. Inspect
+committed files, not an uncommitted working-tree snapshot. Do not limit
+the review to a Git diff or recent changes. Follow applicable project
+instructions.
+
+Do not consult earlier review artifacts, modify files, switch or create
+branches, change commits, or alter remote state.
+
+Report concrete, actionable findings with file/line references, triggering
+scenarios, and impact. Do not request cosmetic changes or speculative
+refactoring. If you find no actionable issues, say so explicitly.
+
+State what you reviewed and anything you could not inspect. A material
+coverage gap is an unreviewed component or behavior that could materially
+affect correctness or security. Explain the potential impact of each gap
+so the coordinator can assess whether it prevents a clean pass.
+```
+
 ## For each review pass
 
-1. Increment the pass count and record the current commit. Launch a NEW, read-only reviewer with verified fresh conversation context. Provide only the repository location, current commit, applicable project requirements, and the read-only review scope and reporting requirements in steps 1–3, including the coverage-gap definition below. Do not pass the entire skill or its coordinator, editing, or commit instructions to the reviewer. Do not provide prior findings, fix explanations, review logs, or conversation history. Instruct the reviewer to inspect committed files at that exact commit, not an uncommitted working-tree snapshot. The reviewer must not consult earlier review artifacts, modify files, switch or create branches, change commits, or alter remote state.
-2. Ask the reviewer to audit the WHOLE current codebase at that commit, including committed source, tests, configuration, and scripts. Do not limit the review to a Git diff or recent changes.
-3. Require concrete, actionable findings with file/line references, triggering scenarios, and impact. Require a statement of coverage and anything the reviewer could not inspect. A material coverage gap is an unreviewed component or behavior that could materially affect correctness or security. Require the reviewer to explain the potential impact of each gap so the coordinator can assess whether it prevents a clean pass. Do not request cosmetic changes or speculative refactoring.
-4. Wait for the reviewer to finish before editing. Validate each finding against the reviewed commit. Record why any finding is rejected; a rejected finding alone does not prevent a clean pass. Fix genuine issues and add regression tests where appropriate. Do not weaken tests or checks. Stop as blocked on unresolved findings or decisions requiring the user's input.
+1. Increment the pass count and record the current commit. Launch a NEW, read-only reviewer with verified fresh conversation context using only the completed Reviewer prompt above. Do not pass the entire skill or its coordinator, editing, or commit instructions to the reviewer. Do not provide prior findings, fix explanations, review logs, or conversation history.
+2. Wait for the reviewer to finish before editing. Inspect its output for errors, completeness, and coverage, and assess the potential impact of any reported gaps.
+3. If the review has an error, missing output, is incomplete, or has a material coverage gap, mark the pass non-clean and reset the consecutive-clean count. Close or retire the reviewer as described in step 6. If a fresh review can address the problem with available capabilities and fewer than 10 passes have been attempted, start the next pass at step 1 without editing or committing in this pass. Otherwise, stop as blocked and explain the problem. For a complete review with no material coverage gaps, proceed to step 4.
+4. Validate each finding against the reviewed commit. Record why any finding is rejected; a rejected finding alone does not prevent a clean pass. Fix genuine issues and add regression tests where appropriate. Do not weaken tests or checks. After attempting fixes and validation, stop as blocked if any verified finding remains unresolved. If resolving a finding requires a decision from the user, stop as blocked before making that decision.
 5. Run all required or selected checks, including on passes with no fixes. Fix failures caused by a verified repository issue and rerun the checks on the resulting state; stop as blocked if checks remain failing or unavailable. If preparation established that no checks exist, proceed with that recorded limitation. Once checks pass or that no-checks case applies, verify that only intended changes are included, refresh and recheck the upstream, and stop on unexpected remote changes. Commit the fixes to the starting branch under the launch authorization, verify the resulting commit, and update the expected local HEAD. Do not create empty commits for clean passes. Keep all fix commits local for the human to push; unpushed fix commits do not block the loop.
 6. Close the finished reviewer using the supported lifecycle mechanism. If no close operation exists, retire the completed reviewer and never reuse or resume it for another pass. Start a NEW reviewer with verified fresh conversation context for every subsequent pass; do not include earlier review results.
 
@@ -48,9 +76,9 @@ Do not push, rewrite history, bypass branch protection, change remotes, or inclu
 
 - Reset the clean-review counter after any code change, including changes to tests, configuration, or scripts. A change to the reviewed commit also invalidates the consecutive-clean sequence.
 - Count a clean pass only when an independent review completes with no actionable findings remaining after validation, no material coverage gaps, and all required or selected checks passing for the same unchanged commit. If preparation established that no checks are required or available, a review may count as clean with that limitation disclosed; an unavailable required or selected check never qualifies for this exception. Increment the consecutive-clean counter by one for each such pass. A pass that produces fixes is not clean; the resulting commit must be reviewed again.
-- Errors, missing output, incomplete reviews, and failing or unavailable required or selected checks are not clean passes. Reset the consecutive-clean count on a non-clean pass. For a reviewer error or material coverage gap, a fresh reviewer may retry within the 10-pass limit; every attempted review counts as a pass. If the gap cannot be addressed with available capabilities, stop as blocked. Handle check failures as described in step 5.
+- Errors, missing output, incomplete reviews, and failing or unavailable required or selected checks are not clean passes. Reset the consecutive-clean count on a non-clean pass. Handle reviewer errors and coverage gaps as described in step 3 and check failures as described in step 5. Every attempted review counts toward the 10-pass limit.
 - Stop successfully after two consecutive clean passes on the same unchanged commit, with a clean working tree, local HEAD matching the expected local HEAD, and the refreshed GitHub upstream still matching the recorded starting commit. Local fix commits awaiting a human push are compatible with successful completion.
-- Run at most 10 review passes. If success has not been achieved by the end of pass 10, stop as blocked. Stop earlier on unresolved findings, unavailable permissions, unexpected remote changes, or decisions requiring the user's input. Do not continue retrying beyond these limits.
+- Run at most 10 review passes. If success has not been achieved by the end of pass 10, stop as blocked. Stop earlier on verified findings that remain unresolved after step 4, unavailable permissions, unexpected remote changes, or decisions requiring the user's input. Do not continue retrying beyond these limits.
 - Preserve the safety guardrails throughout the loop: no pushes, history rewriting, branch-protection bypass, remote changes, unrelated work, or weakened tests/checks.
 
 ## Final report

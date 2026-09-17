@@ -26,14 +26,14 @@ Use the host's built-in subagents, with verified support for starting without co
 - Follow applicable user and repository instructions, including AGENTS.md and CLAUDE.md.
 - Require an existing local Git working tree with a valid HEAD on a checked-out branch and a **clean working tree**: no staged changes, unstaged changes, or non-ignored untracked files. Stop if any requirement is unmet.
 - Record the checked-out branch as the **starting branch** and its commit as the **expected local HEAD**. Any branch, including main, is supported; no remote or upstream is required.
-- Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope. Stop if a required or selected check cannot run. Only when no checks are required and no relevant checks exist, record the **no-checks exception**, which waives check execution only.
+- Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope. Stop if a required or selected check is blocked by an unavailable environment prerequisite, such as a runtime or local service. Failures caused by repository issues follow [Check execution rules](#check-execution-rules). Only when no checks are required and no relevant checks exist, record the **no-checks exception**, which waives check execution only.
 - Initialize the attempted-pass and consecutive-clean counters to zero.
 
 ## Run invariants
 
 **Content changes** are changes to tracked or non-ignored untracked files, including additions and deletions.
 
-Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Advance the expected value only after [Verify commit](#verify-commit) succeeds. Stop on any mismatch or unrelated working-tree change.
+Before each review, before editing or committing, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Advance the expected value only after [Verify commit](#verify-commit) succeeds. Stop on any mismatch, unexplained working-tree change, or working-tree change made outside this run.
 
 ## Reviewer prompt
 
@@ -76,6 +76,8 @@ materially affect correctness or security.
 
 A **full suite** runs all checks identified during preparation. A **check run** is a full suite or a single targeted check. Targeted checks may diagnose or verify fixes unless the recovery rules require static diagnosis or a full suite next.
 
+For each accepted review, require a passing full suite that made no content changes, even when no fixes were needed, unless the no-checks exception applies. Reuse results only within the current pass while content remains unchanged.
+
 For every check command, compare repository status and content before and after, regardless of exit status. Stop immediately on any content change not justified by the intended fix. Once the stabilization rerun starts, stop on any further check-induced content change in that pass.
 
 Before committing, apply all relevant recovery rules before running further checks. Post-commit checks follow [Verify commit](#verify-commit) instead.
@@ -110,7 +112,7 @@ Resolve all verified findings before proceeding. The check-failure repair limit 
 
 ### Check and stage content
 
-Unless the no-checks exception applies, require a passing full suite that made no content changes, even on passes with no fixes. Reuse results only within the current pass while content remains unchanged.
+Satisfy [Check execution rules](#check-execution-rules) before proceeding.
 
 If no content changes remain relative to the reviewed commit, skip to [Retire reviewer](#retire-reviewer).
 

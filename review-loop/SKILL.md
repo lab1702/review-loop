@@ -25,6 +25,8 @@ Require host-provided subagents with documented support for starting without coo
 
 Before each review, edit, or commit, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Stop on a mismatch, or if any working-tree change is unexplained or comes from outside this run.
 
+Require no merge, rebase, cherry-pick, revert, or other sequencer operation in progress during preparation and before every commit. Check Git's operation state using `git rev-parse --git-path` (including `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge`, `rebase-apply`, and `sequencer`); a clean working tree alone is insufficient. Stop without completing or aborting an existing operation.
+
 ## Preparation
 
 - Follow applicable user and repository instructions, including AGENTS.md and CLAUDE.md.
@@ -73,7 +75,9 @@ or security of an in-scope component or behavior.
 
 ## Check execution rules
 
-A **full suite** runs all checks identified during preparation. A **check run** is a full suite or a targeted check. Stop if a check requires an unavailable runtime, local service, or other prerequisite.
+A **full suite** runs all currently required or selected relevant checks, initially identified during preparation. A **check run** is a full suite or a targeted check. Stop if a check requires an unavailable runtime, local service, or other prerequisite.
+
+Reassess the check commands and any no-checks exception at the start of each pass and after changes to tests, check configuration, dependencies, or project instructions, including changes made by checks or hooks. Include newly available or required checks, and revoke the exception when checks now exist or are required. If the suite changes, invalidate earlier results and require the updated full suite before staging or completing the pass; for hook changes, apply [Verify commit](#verify-commit). This does not reset repair or stabilization limits.
 
 Before staging or completing a pass with an accepted review, require a passing full suite that leaves content unchanged, unless the no-checks exception applies. Results apply only to unchanged content within that pass.
 

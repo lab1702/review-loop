@@ -76,7 +76,7 @@ materially affect correctness or security.
 
 A **full suite** runs all checks identified during preparation. A **check run** is a full suite or a single targeted check. Targeted checks may diagnose or verify fixes unless the recovery rules require static diagnosis or a full suite next.
 
-For every check command, compare repository status and content before and after, regardless of exit status. Stop immediately on any content change not justified by the intended fix, or any check-induced change during the stabilization rerun or a later run in the pass.
+For every check command, compare repository status and content before and after, regardless of exit status. Stop immediately on any content change not justified by the intended fix. Once the stabilization rerun starts, stop on any further check-induced content change in that pass.
 
 Before committing, apply all relevant recovery rules before running further checks. Post-commit checks follow [Verify commit](#verify-commit) instead.
 
@@ -102,7 +102,7 @@ If launch or review acceptance fails, skip to [Retire reviewer](#retire-reviewer
 
 Validate each finding against the reviewed commit. Record the reason for each rejection. Fix verified findings and add regression tests where appropriate.
 
-Resolve all verified findings before proceeding. Reviewer-finding repairs have no separate attempt limit; the two-attempt limit applies only to repairs after failed checks. Stop if:
+Resolve all verified findings before proceeding. The check-failure repair limit does not apply to reviewer-finding repairs. Stop if:
 
 - Required information or a consequential choice cannot be inferred, or required authorization is missing.
 - A finding cannot be resolved within scope.

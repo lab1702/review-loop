@@ -9,7 +9,7 @@ Review the whole repository with independent reviewers, fix verified issues, run
 
 ## Launch requirements
 
-Require explicit authorization for **ordinary commits**: new local commits on the starting branch. For example: "I authorize ordinary commits to the current branch." Invoking the skill alone is insufficient. If authorization is absent or ambiguous, request it and wait before starting. This covers ordinary commits throughout the run without reconfirmation; required platform approvals still apply.
+Before starting, require explicit authorization for **ordinary commits**: new local commits on the starting branch. For example: "I authorize ordinary commits to the current branch." Invoking the skill alone is insufficient; if authorization is absent or ambiguous, request it and wait. This commit authorization covers the entire run without reconfirmation; required platform approvals still apply.
 
 Use the host's built-in subagents. Verify that each reviewer can start without inheriting the coordinator's or earlier reviewers' conversations, for example via documented support for `collaboration.spawn_agent` with `fork_turns: "none"`. A separate filesystem is unnecessary; a separate task or an instruction to "ignore previous context" does not establish isolation. Stop if isolation cannot be verified. Do not install or invoke a separate Codex or Claude Code CLI.
 
@@ -27,7 +27,7 @@ Use the host's built-in subagents. Verify that each reviewer can start without i
 - Follow AGENTS.md, CLAUDE.md, and the repository's instructions.
 - Require an existing local Git working tree with a valid HEAD on a checked-out branch and no staged changes, unstaged changes, or non-ignored untracked files. Stop if any requirement is unmet.
 - Record the checked-out branch as the **starting branch** and its current commit as the **expected local HEAD**. Any branch, including main, is supported; no remote or upstream is required.
-- Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope; if none exist, record the **no-checks exception**, which waives check execution only. Stop if a required or selected check cannot run.
+- Identify required test, lint, type-check, and build commands. If none are specified, select relevant available checks and state their scope. Record the **no-checks exception** only when no checks are required and no relevant checks exist; it waives check execution only. Stop if a required or selected check cannot run.
 - Initialize the review-pass and consecutive-clean counters to zero.
 
 ### Invariants during the run
@@ -74,7 +74,7 @@ materially affect correctness or security.
 
 ## Check execution rules
 
-A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check used to diagnose or verify a fix. Targeted checks cannot substitute for a full suite.
+A **full suite** runs all checks identified during preparation. A **check run** is either a full suite or a single targeted check used to diagnose or verify a fix.
 
 **Content changes** are changes to tracked or non-ignored untracked files, including additions and deletions.
 
@@ -93,7 +93,7 @@ A pass becomes permanently **non-clean** if its review is not accepted, any find
 
 ### Launch reviewer
 
-Increment the pass count, reset both check retry counters to zero, and record the current commit. These retry counters reset only here. Launch a new reviewer using the verified isolation mechanism and **Reviewer prompt**. Failed launches and incomplete reviews still consume a pass.
+Increment the pass count and record the current commit. Reset the failure-repair and stabilization-rerun counters to zero only at this step. Launch a new reviewer using the verified isolation mechanism and **Reviewer prompt**. Failed launches and incomplete reviews still consume a pass.
 
 ### Assess review
 
@@ -105,17 +105,19 @@ If launch or review acceptance fails, skip to **Retire reviewer** only if availa
 
 Validate each finding against the reviewed commit. Record the reason for each rejection. Fix verified findings and add regression tests where appropriate.
 
-Resolve all verified findings before proceeding. Use user instructions and repository guidance for routine decisions; stop if required information, authorization, or a consequential choice cannot be inferred. Fixing review findings has no separate attempt limit, but stop if no evidence-backed next step remains, attempts repeat without progress, or a finding cannot be resolved within scope. Check failures follow **Check execution rules**.
+Resolve all verified findings before proceeding. Use user instructions and repository guidance for routine decisions; stop if required information or a consequential choice cannot be inferred, or required authorization is missing. Fixing review findings has no separate attempt limit, but stop if no evidence-backed next step remains, attempts repeat without progress, or a finding cannot be resolved within scope. Check failures follow **Check execution rules**.
 
 ### Check and stage content
 
 Unless the no-checks exception applies, require a passing full suite that made no content changes, even on passes with no fixes. Reuse results only within the current pass while content remains unchanged.
 
-If fixes exist, stage only those fixes. Verify that staged content matches the checked content, with no unstaged tracked changes or unexplained non-ignored files. Record the staged Git tree ID using `git write-tree` and associate it with the check results or exception. Keep this content unchanged until committing; handle hook changes in **Verify commit**.
+If no content changes remain relative to the reviewed commit, skip to **Retire reviewer** without creating an empty commit.
+
+Otherwise, stage only verified fixes. Verify that staged content matches the checked content, with no unstaged tracked changes or unexplained non-ignored files. Record the staged Git tree ID using `git write-tree` and associate it with the check results or exception. Keep this content unchanged until committing; handle hook changes in **Verify commit**.
 
 ### Commit fixes
 
-If fixes exist, verify that the staged tree still matches the recorded tree ID, then commit to the starting branch. Otherwise, skip to **Retire reviewer** without creating an empty commit.
+Verify that the staged tree still matches the recorded tree ID, then commit to the starting branch.
 
 If the commit command fails, including hook rejection, inspect HEAD, the index, and working tree, then stop. Report whether a commit was created and what remains uncommitted. Do not repair, retry the commit, or bypass hooks.
 

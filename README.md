@@ -20,18 +20,18 @@ The install scripts copy the skill to both `~/.agents/skills/` (Codex) and `~/.c
 
 ## Usage
 
-Check out the branch you want reviewed before starting. The loop works on that branch (including `main`) and never creates or switches branches. It requires a clean working tree matching an existing GitHub upstream; configure and synchronize the upstream yourself before launching. If the checked-out branch or upstream configuration changes during the run, the loop stops.
+Check out the branch you want reviewed before starting. The loop works on that branch (including `main`) and never creates or switches branches. It requires a clean working tree matching an existing GitHub upstream; configure and synchronize the upstream yourself before launching. If the checked-out branch or upstream configuration changes during the run, the loop stops. Verified fixes are committed locally after checks pass. The loop never pushes; successful completion can leave local fix commits for you to push manually.
 
 In the Codex chat window:
 
 ```
 $review-loop
-I authorize ordinary commits to the current branch and pushes to its existing upstream.
+I authorize ordinary commits to the current branch.
 ```
 
 In Claude Code:
 
 ```
 /review-loop
-I authorize ordinary commits to the current branch and pushes to its existing upstream.
+I authorize ordinary commits to the current branch.
 ```

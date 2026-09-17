@@ -18,12 +18,12 @@ Require host-provided subagents with documented support for starting without coo
 ## Run boundaries
 
 - Use only the existing local repository. Do not access remote services, query or modify remotes, or fetch, pull, or push. This applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
-- Do not amend commits, rewrite history, create or switch branches, discard user or outside-run work, include unrelated work, or weaken tests/checks. While the run is active, you may revise or revert your own uncommitted fix attempts.
+- Do not amend commits, rewrite history, create or switch branches, discard work from outside this run, include unrelated work, or weaken tests/checks. You may revise or revert your own uncommitted fix attempts during the run.
 - Keep review artifacts (transcripts, finding inventories, and run logs) in the conversation, outside the working tree, or in an already-ignored location. Never commit them.
 
 **Content changes** are edits, additions, or deletions of tracked or non-ignored untracked files. A **clean working tree** has no staged changes, unstaged changes, or non-ignored untracked files.
 
-Before each review, edit, or commit, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Stop on a mismatch or any unexplained or outside-run working-tree change.
+Before each review, edit, or commit, and at completion, verify that the starting branch is checked out and HEAD matches the expected local HEAD. Stop on a mismatch, or if any working-tree change is unexplained or comes from outside this run.
 
 ## Preparation
 
@@ -36,7 +36,7 @@ Before each review, edit, or commit, and at completion, verify that the starting
 
 ## Reviewer prompt
 
-Give each reviewer only the prompt below with its placeholders filled in. Summarize user requirements without relying on conversation history; use "None specified" if there are none. Do not attach prior findings, fix explanations, or this skill.
+Give each reviewer only the prompt below with its placeholders filled in. Make user requirements self-contained; use "None specified" if there are none. Do not attach prior findings, fix explanations, or this skill.
 
 ```text
 Repository: <repository location>
@@ -75,17 +75,17 @@ or security of an in-scope component or behavior.
 
 A **full suite** runs all checks identified during preparation. A **check run** is a full suite or a targeted check. Stop if a check requires an unavailable runtime, local service, or other prerequisite.
 
-Before staging or completing a pass with an accepted review, require a full suite that passes without changing content, unless the no-checks exception applies. Results remain valid only within that pass while content is unchanged; targeted checks do not replace the full suite.
+Before staging or completing a pass with an accepted review, require a passing full suite that leaves content unchanged, unless the no-checks exception applies. Results apply only to unchanged content within that pass; targeted checks do not replace the full suite.
 
 Compare repository status and content before and after every check command, regardless of exit status. Stop if any check-induced change falls outside the verified fixes.
 
 The recovery rules below apply only before committing. Post-commit checks follow [Verify commit](#verify-commit).
 
-A **failure-repair attempt** consists of diagnosing a failed check using existing output and static inspection only, then repairing a verified repository issue. Allow at most two attempts per pass. Stop if another attempt is needed but none remain, or if no verified issue can be repaired. Only repairs triggered by failed checks consume this allowance, even if the reviewer also reported the issue.
+A **failure-repair attempt** uses existing check output and static inspection only to diagnose a failure, then repairs a verified repository issue. Allow at most two per pass; stop if no verified repair is possible or another attempt would exceed the limit. Only repairs prompted by check failures count, even if the reviewer also reported the issue.
 
-A **stabilization rerun** is the first full suite after a content-changing check run. From its start through the rest of the pass, stop on any further check-induced content change.
+A **stabilization rerun** is the first full suite after a check run changes content. Once it starts, any further check-induced content change in that pass stops the run.
 
-Finish every command in the current check run before applying this table, unless a stop condition requires an immediate stop:
+Apply this table after all commands in the current check run finish; obey stop conditions immediately:
 
 | Check-run result | Required next action |
 | --- | --- |
@@ -106,7 +106,7 @@ A pass is **clean** only if none of these events occurs and [Check and stage con
 
 ### Launch reviewer
 
-Increment the attempted-pass count before launch; failed launches and unaccepted reviews count toward the limit. Start with zero failure-repair attempts and no stabilization rerun started. Launch a fresh reviewer of the expected local HEAD using the required isolation and [Reviewer prompt](#reviewer-prompt).
+At the start of each pass, reset failure-repair attempts to zero and stabilization status to not started. Increment the attempted-pass count before launching a fresh, isolated reviewer of the expected local HEAD with the [Reviewer prompt](#reviewer-prompt). Failed launches and unaccepted reviews count toward the limit.
 
 ### Assess review
 
@@ -162,7 +162,7 @@ At the end of each pass, increment the consecutive-clean count if clean, then ev
 
 On every exit, retire any remaining reviewer, preserve local commits and uncommitted changes, and produce the [Final report](#final-report).
 
-Restart at [Launch requirements](#launch-requirements) with fresh counters after the user resolves any blocker and ensures a clean working tree. Reaching only the pass limit requires no repository changes.
+A new invocation restarts at [Launch requirements](#launch-requirements) with fresh counters. The user must first resolve blockers and ensure a clean working tree; reaching only the pass limit requires no repository changes.
 
 ## Final report
 

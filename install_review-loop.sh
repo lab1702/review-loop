@@ -14,11 +14,13 @@ done
 
 # Codex
 rm -rf "$HOME/.agents/skills/review-loop"
-mkdir -p "$HOME/.agents/skills" && cp -a -- "$skill_source" "$HOME/.agents/skills/"
+mkdir -p "$HOME/.agents/skills"
+cp -a -- "$skill_source" "$HOME/.agents/skills/"
 
 # Claude Code
 rm -rf "$HOME/.claude/skills/review-loop"
-mkdir -p "$HOME/.claude/skills" && cp -a -- "$skill_source" "$HOME/.claude/skills/"
+mkdir -p "$HOME/.claude/skills"
+cp -a -- "$skill_source" "$HOME/.claude/skills/"
 
 # Claude Code uses a frontmatter flag; Codex uses agents/openai.yaml.
 {

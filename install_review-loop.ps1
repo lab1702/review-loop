@@ -28,7 +28,9 @@ function Get-CanonicalDirectory([string]$Path, [int]$LinkDepth = 0) {
     } catch [System.Management.Automation.ItemNotFoundException] {
         return $candidate
     }
-    if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+    # Cloud-backed directories can be reparse points without redirecting paths.
+    # Only symbolic links and junctions need a target to be canonicalized.
+    if ($item.LinkType -eq 'SymbolicLink' -or $item.LinkType -eq 'Junction') {
         $linkTarget = @($item.Target)[0]
         if (-not $linkTarget) { throw "Cannot resolve directory link: $candidate" }
         if (-not [System.IO.Path]::IsPathRooted($linkTarget)) {

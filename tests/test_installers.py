@@ -369,6 +369,55 @@ class BashInstallers(InstallerCases, unittest.TestCase):
 class PowerShellInstallers(InstallerCases, unittest.TestCase):
     engine = 'powershell'
 
+    def run_with_reparse_ancestor(self, link_type=''):
+        command, env = self.prepare_installer()
+        script = Path(command[-1])
+        env['REVIEW_LOOP_REPARSE_PATH'] = str(self.source)
+        env['REVIEW_LOOP_REPARSE_LINK_TYPE'] = link_type
+        marker = self.root / 'reparse-metadata-inspected'
+        env['REVIEW_LOOP_REPARSE_MARKER'] = str(marker)
+        marker.unlink(missing_ok=True)
+        # Simulate Windows directory metadata while exercising the complete
+        # installer against real temporary source and destination directories.
+        script.write_text('''function Get-Item {
+    [CmdletBinding()]
+    param([string]$LiteralPath, [switch]$Force)
+    $item = Microsoft.PowerShell.Management\\Get-Item @PSBoundParameters
+    if ($LiteralPath -eq $env:REVIEW_LOOP_REPARSE_PATH) {
+        [System.IO.File]::WriteAllText($env:REVIEW_LOOP_REPARSE_MARKER, '')
+        return [pscustomobject]@{
+            Attributes = $item.Attributes -bor [System.IO.FileAttributes]::ReparsePoint
+            PSIsContainer = $true
+            LinkType = $env:REVIEW_LOOP_REPARSE_LINK_TYPE
+            Target = $null
+        }
+    }
+    return $item
+}
+''' + script.read_text())
+        result = subprocess.run(command, cwd=self.root, env=env,
+                                capture_output=True, text=True, timeout=30)
+        self.assertTrue(marker.exists(), result.stdout + result.stderr)
+        return result
+
+    def test_non_link_reparse_ancestor_can_install(self):
+        self.seed_installs()
+        result = self.run_with_reparse_ancestor()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for target in self.targets:
+            self.assertTrue((target / 'SKILL.md').is_file())
+            self.assertFalse((target / 'sentinel').exists())
+        self.assert_no_stages()
+
+    def test_unresolved_directory_links_preserve_installs(self):
+        self.seed_installs()
+        for link_type in ('SymbolicLink', 'Junction'):
+            with self.subTest(link_type=link_type):
+                result = self.run_with_reparse_ancestor(link_type)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Cannot resolve directory link', result.stderr)
+                self.assert_previous_installs()
+
 
 if __name__ == '__main__':
     unittest.main()

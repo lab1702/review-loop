@@ -17,10 +17,10 @@ Require host-provided subagents with documented support for starting without coo
 
 ## Run boundaries
 
-- Use only the existing local repository. Do not access remote services, query or modify remotes, or fetch, pull, or push. This applies to reviewers, checks, and hooks; stop if a required operation needs remote access.
-- Set `GIT_NO_LAZY_FETCH=1` in the environment of every Git command and of checks and hooks that may invoke Git. Set it explicitly in each execution environment, including reviewers; do not assume shell or subagent environment changes persist. This prevents static reads in partial clones from fetching missing objects. Verify Git support locally with `git --no-lazy-fetch --version`; if unsupported or a required object is missing locally, stop and report the coverage gap without fetching.
+- Network access is allowed as needed for review, repairs, and checks, including documentation lookups, GitHub queries, dependency downloads, and fetching missing Git objects. Fetches, including automatic fetches in partial clones, must preserve the checked-out branch, HEAD, index, and working-tree content.
+- Leave all Git pushes to the user. Do not push to GitHub or any other remote, directly or through reviewers, checks, or hooks.
 - Do not amend commits, rewrite history, create or switch branches, discard work from outside this run, include unrelated work, or weaken tests/checks. You may revise or revert your own uncommitted fix attempts during the run.
-- Keep review artifacts (transcripts, finding inventories, and run logs) in the conversation, outside the working tree, or in an already-ignored location. Never commit them.
+- Temporary files and directories are allowed for review, analysis, repairs, and checks. Keep scratch files and review artifacts (transcripts, finding inventories, and run logs) outside the working tree or in an ignored location; artifacts may also stay in the conversation. Never commit them. Clean up disposable files created by the run when they are no longer needed.
 
 **Content changes** are edits, additions, or deletions of tracked or non-ignored untracked files. A **clean working tree** has no staged changes, unstaged changes, or non-ignored untracked files.
 
@@ -53,20 +53,22 @@ snapshot or only a diff. Follow applicable project instructions.
 
 Inventory generated files, vendored dependencies, binaries, and submodules.
 Review their integration and relevant correctness or security risks; inspect
-submodules at their recorded commits when available locally. You may omit detailed
-inspection of generated or vendored content when reviewing its maintained
-inputs or integration is sufficient.
+submodules at their recorded commits, fetching missing objects if needed.
+You may omit detailed inspection of generated or vendored content when
+reviewing its maintained inputs or integration is sufficient.
 
-Use only locally available files and Git objects. Do not access GitHub or
-other remote services, query or modify remotes, or fetch, pull, or push.
-Set GIT_NO_LAZY_FETCH=1 for every Git command, including in fresh shells,
-to prevent implicit fetches in partial clones. Verify Git support locally
-with git --no-lazy-fetch --version. If unsupported or required objects are missing, report
-the affected paths and coverage gap without fetching.
-Use only static, read-only inspection commands. Do not execute tests,
+Use static inspection of committed content. Network lookups, GitHub queries,
+and Git fetches (including automatic fetches in partial clones) are allowed
+as needed. Preserve the checked-out branch, HEAD, index, and working-tree
+content when fetching. If required objects remain unavailable, report the
+affected paths and coverage gap. Never push to GitHub or any other remote;
+the user handles all pushes.
+You may create temporary files, directories, and inspection helpers outside
+the working tree or in an ignored location. Never stage or commit them, and
+clean up disposable files you created when finished. Do not execute tests,
 builds, or repository scripts; the coordinator runs checks. Do not consult
-earlier review artifacts, modify files, switch or create branches, or create
-or alter commits.
+earlier review artifacts, edit repository content or the index, switch or
+create branches, or create or alter commits.
 
 Report concrete, actionable findings with file/line references, triggering
 scenarios, and impact. Do not request cosmetic changes or speculative
@@ -80,7 +82,7 @@ or security of an in-scope component or behavior.
 
 ## Check execution rules
 
-A **full suite** runs all currently required or selected relevant checks, initially identified during preparation. A **check run** is a full suite or a targeted check. Stop if a check requires an unavailable runtime, local service, or other prerequisite.
+A **full suite** runs all currently required or selected relevant checks, initially identified during preparation. A **check run** is a full suite or a targeted check. Use network access and temporary environments to obtain routine prerequisites when needed. Stop if a required runtime, service, or other prerequisite remains unavailable.
 
 Reassess the check commands and any no-checks exception at the start of each pass and after changes to tests, check configuration, dependencies, or project instructions, including changes made by checks or hooks. Include newly available or required checks, and revoke the exception when checks now exist or are required. If the suite changes, invalidate earlier results and require the updated full suite before staging or completing the pass; for hook changes, apply [Verify commit](#verify-commit). This does not reset repair or stabilization limits.
 
@@ -179,4 +181,4 @@ A new invocation restarts at [Launch requirements](#launch-requirements) with fr
 - Starting branch and final commit. Mark unavailable or unverified Git values explicitly and explain why.
 - Fixes, checks and their results (or the no-checks exception), review coverage, and remaining limitations.
 - Attempted review passes and consecutive clean passes.
-- Local commits created during the run, any uncommitted changes, and whether all operations stayed local.
+- Local commits created during the run, any uncommitted changes, and confirmation that nothing was pushed.

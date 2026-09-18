@@ -11,9 +11,42 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[1]
-PWSH = os.environ.get('REVIEW_LOOP_PWSH') or shutil.which('pwsh')
+
+
+def find_powershell():
+    return (os.environ.get('REVIEW_LOOP_PWSH') or shutil.which('pwsh') or
+            (shutil.which('powershell.exe') if os.name == 'nt' else None))
+
+
+PWSH = find_powershell()
+
+
+class PowerShellDiscovery(unittest.TestCase):
+    def test_windows_powershell_without_pwsh(self):
+        with mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(os, 'name', 'nt'), \
+                mock.patch.object(shutil, 'which', side_effect=lambda name: {
+                    'powershell.exe': r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+                }.get(name)):
+            self.assertEqual(find_powershell(),
+                             r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe')
+
+    def test_explicit_executable_takes_precedence(self):
+        with mock.patch.dict(os.environ, {'REVIEW_LOOP_PWSH': '/custom/pwsh'}), \
+                mock.patch.object(shutil, 'which', return_value='/default/pwsh'):
+            self.assertEqual(find_powershell(), '/custom/pwsh')
+
+    def test_pwsh_takes_precedence_on_windows(self):
+        with mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(os, 'name', 'nt'), \
+                mock.patch.object(shutil, 'which', side_effect=lambda name: {
+                    'pwsh': r'C:\PowerShell\pwsh.exe',
+                    'powershell.exe': r'C:\Windows\powershell.exe'
+                }.get(name)):
+            self.assertEqual(find_powershell(), r'C:\PowerShell\pwsh.exe')
 
 
 class InstallerCases:
